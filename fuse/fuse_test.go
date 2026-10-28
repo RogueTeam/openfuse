@@ -3,14 +3,16 @@
 package fuse_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/RogueTeam/gopenfuse/fuse"
+	"github.com/RogueTeam/gopenfuse/testsuite"
 )
 
 func Test_Mount(t *testing.T) {
 	t.Run("Single instance", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "single"})
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "single"}, &fuse.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}
@@ -22,7 +24,7 @@ func Test_Mount(t *testing.T) {
 		})
 	})
 	t.Run("Multiple instances", func(t *testing.T) {
-		i1, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "first"})
+		i1, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "first"}, &fuse.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance 1")
 		}
@@ -33,7 +35,7 @@ func Test_Mount(t *testing.T) {
 			}
 		})
 
-		i2, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "second"})
+		i2, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "second"}, &fuse.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance 2")
 		}
@@ -43,5 +45,23 @@ func Test_Mount(t *testing.T) {
 				t.Errorf("failed to close instance 2: %v", err)
 			}
 		})
+	})
+}
+
+func Test_Serve(t *testing.T) {
+	t.Run("Simple", func(t *testing.T) {
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, &fuse.NopHandler{})
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		i.Serve(t.Context(), logger)
 	})
 }

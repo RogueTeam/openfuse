@@ -3,29 +3,72 @@
 package fuse
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
+	"sync/atomic"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
 
 // Last time checked 8.0
-const FuseBufMaxSize = 4096 * 1024 // 4MB
+const FusebufMaxSize = 4096 * 1024 // 4MB
 
 const DevicePath = "/dev/fuse0"
 
 // Fuse, never create by hand. Always use Mount
-type Fuse struct {
+type Fuse[T Handler] struct {
+	// Raad-Only Handler instance
+	Handler T
+	// Read-Only used to monitor if the fuse is running or not
+	Finished atomic.Bool
+	// Read-Only
+	MaxWrite int
 	// READ-Only Mountpoint, used during close for unmount
 	Mountpoint string
 	// READ-Only  File descriptor to the underlying
 	Fd int
 }
 
+// Serve incoming fuse requests until the provided context is terminated
+func (f *Fuse[T]) Serve(ctx context.Context, logger *slog.Logger) (err error) {
+	var buffer []byte
+	if f.MaxWrite > FusebufMaxSize {
+		buffer = make([]byte, FusebufSize+FusebufMaxSize)
+	} else if f.MaxWrite < unix.PathMax+unix.NAME_MAX {
+		buffer = make([]byte, FusebufSize+unix.PathMax+unix.NAME_MAX)
+	} else {
+		buffer = make([]byte, FusebufSize+f.MaxWrite)
+	}
+
+	for !f.Finished.Load() {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context error: %w", ctx.Err())
+		default:
+			n, err := unix.Read(f.Fd, buffer)
+			if err != nil {
+				return fmt.Errorf("failed to read from fuse device: %w", err)
+			}
+
+			err = f.handle(ctx, logger, buffer[:n])
+			if err != nil {
+				return fmt.Errorf("failed to handle: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 // Unmounts and Closes the file descriptor related to the instance
-func (f *Fuse) Close() (err error) {
+func (f *Fuse[T]) Close() (err error) {
+	if !f.Finished.CompareAndSwap(false, true) {
+		return fmt.Errorf("already closed")
+	}
+
 	err1 := unix.Unmount(f.Mountpoint, unix.MNT_FORCE)
 	err2 := unix.Close(f.Fd)
 	switch {
@@ -52,6 +95,8 @@ type Options struct {
 	DefPerms int
 	// Negotiated max read size
 	MaxRead int
+	// Negotiated max write size
+	MaxWrite int
 	// Do not permit the kernel to enforce atime
 	NoAtime bool
 	// Permit mount on non empty directory
@@ -66,7 +111,10 @@ const MaxPendingEvents = 1024
 // Apply all the defaults
 func (o *Options) Defaults() {
 	if o.MaxRead <= 0 {
-		o.MaxRead = 32 * 1024
+		o.MaxRead = FusebufMaxSize
+	}
+	if o.MaxWrite <= 0 {
+		o.MaxWrite = FusebufMaxSize
 	}
 }
 
@@ -75,14 +123,17 @@ func (o *Options) Validate() (err error) {
 	if o.Name == "" {
 		return fmt.Errorf("no options provided")
 	}
-	if o.MaxRead > FuseBufMaxSize {
-		return fmt.Errorf("o.MaxRead can't be bigger than %d; got %d", FuseBufMaxSize, o.MaxRead)
+	if o.MaxRead > FusebufMaxSize {
+		return fmt.Errorf("o.MaxRead can't be bigger than %d; got %d", FusebufMaxSize, o.MaxRead)
+	}
+	if o.MaxWrite > FusebufMaxSize {
+		return fmt.Errorf("o.MaxWrite can't be bigger than %d; got %d", FusebufMaxSize, o.MaxWrite)
 	}
 	return nil
 }
 
 // Creates a new FUSE instance
-func Mount(dir string, o Options) (i *Fuse, err error) {
+func Mount[T Handler](dir string, o Options, h T) (i *Fuse[T], err error) {
 	if dir == "" {
 		return nil, fmt.Errorf("no directory provided")
 	}
@@ -112,7 +163,9 @@ func Mount(dir string, o Options) (i *Fuse, err error) {
 		mountFlags |= unix.MNT_NOATIME
 	}
 
-	i = &Fuse{
+	i = &Fuse[T]{
+		Handler:    h,
+		MaxWrite:   o.MaxRead,
 		Mountpoint: dir,
 		Fd:         fd,
 	}

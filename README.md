@@ -7,8 +7,8 @@ A pure Go, BSD Licensed, handcrafted fuse library so you can bring your FUSE ide
 ## Coding mantras for this project
 
 - Less dependencies meings less things to worry about.
-- `golang.org/x` dependencies count a no dependencies.
-- Being correct is more important than  beingfast.
+- `golang.org/x` dependencies count as no dependencies.
+- Being correct is more important than being fast.
 
 ## Versioning
 
