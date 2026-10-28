@@ -157,6 +157,8 @@ type FuseOpenIn struct {
 	Unused uint32
 }
 
+const FuseOpenInSize = int(unsafe.Sizeof(FuseOpenIn{}))
+
 type FuseReadIn struct {
 	FileHandle uint64
 	Offset     uint64

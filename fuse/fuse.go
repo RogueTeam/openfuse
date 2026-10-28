@@ -34,6 +34,7 @@ type Fuse[T Handler] struct {
 }
 
 // Serve incoming fuse requests until the provided context is terminated
+// Serves each request sequentially so no parallelism is involved at all
 func (f *Fuse[T]) Serve(ctx context.Context, logger *slog.Logger) (err error) {
 	var buffer []byte
 	if f.MaxWrite > FusebufMaxSize {

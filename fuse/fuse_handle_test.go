@@ -1,3 +1,5 @@
+//go:build openbsd
+
 package fuse_test
 
 import (
@@ -58,13 +60,29 @@ func Test_Readdir(t *testing.T) {
 
 		mpFs := os.DirFS(i.Mountpoint)
 
-		err = fs.WalkDir(mpFs, "/", func(path string, d fs.DirEntry, err error) error {
-			t.Logf("File/Dir: %s", path)
-			return nil
+		t.Run("Root", func(t *testing.T) {
+			entries, err := os.ReadDir(i.Mountpoint)
+			if err != nil {
+				t.Fatalf("failed to readdir mountpoint: %v", err)
+				return
+			}
+
+			t.Logf("Entries: %v", entries)
 		})
-		if err != nil {
-			t.Fatalf("failed to walk filesystem")
-			return
-		}
+
+		t.Run("Walk", func(t *testing.T) {
+			err = fs.WalkDir(
+				mpFs, "",
+				func(path string, d fs.DirEntry, err error) error {
+					t.Logf("File/Dir: %s %v", path, d)
+					return nil
+				},
+			)
+
+			if err != nil {
+				t.Fatalf("failed to walk filesystem")
+				return
+			}
+		})
 	})
 }

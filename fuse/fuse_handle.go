@@ -11,7 +11,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var ErrCritical = fmt.Errorf("critical error")
+var (
+	ErrCritical  = fmt.Errorf("critical error")
+	ErrDestroyed = fmt.Errorf("instance destroyed by the kernel")
+)
 
 // HError wrapper to easily respond with errors from the handler
 // Check for already constructed fuse.HError* values for predefined values
@@ -49,7 +52,12 @@ var (
 )
 
 type Handler interface {
-	GetAttr(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseGetattrIn) (out FuseAttrOut, err *HError)
+	// Retrieves the attributes for a specific file identified by the inode in the header
+	GetAttr(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseGetattrIn) (out FuseAttrOut, hErr *HError)
+	// Permits the handle to perform any cleanup prior releasing it entirely
+	Destroy(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (hErr *HError)
+	// Opens a directory identified by the inode in the header
+	OpenDir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseOpenIn) (out FuseOpenOut, hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -80,6 +88,20 @@ func (f *Fuse[T]) ReplyValue[O FuseAttrOut | FuseInitOut |
 		unsafe.Slice((*byte)(unsafe.Pointer(out)), unsafe.Sizeof(*out)),
 	}
 	_, err = unix.Writev(f.Fd, parts)
+	if err != nil {
+		return fmt.Errorf("failed to write reply: %w", err)
+	}
+	return nil
+}
+
+func (f *Fuse[T]) ReplyNoValue(hdr *FuseInHeader) (err error) {
+	outHeader := FuseOutHeader{
+		Length: uint32(FuseOutHeaderSize),
+		Error:  0,
+		Unique: hdr.Unique,
+	}
+
+	_, err = unix.Write(f.Fd, unsafe.Slice((*byte)(unsafe.Pointer(&outHeader)), FuseOutHeaderSize))
 	if err != nil {
 		return fmt.Errorf("failed to write reply: %w", err)
 	}
@@ -188,9 +210,55 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeOPENDIR:
+		if len(inBuffer) != FuseOpenInSize {
+			logger.
+				With("expecting", FuseOpenInSize).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		inOpen := (*FuseOpenIn)(unsafe.Pointer(&inBuffer[0]))
+
+		out, hErr := f.Handler.OpenDir(ctx, logger, header, inOpen)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeREADDIR:
 	case FusebufTypeRELEASEDIR:
 	case FusebufTypeDESTROY:
+		if len(inBuffer) != 0 {
+			logger.
+				With("expecting", 0).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		hErr := f.Handler.Destroy(ctx, logger, header)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return ErrDestroyed
 	case FusebufTypeFORGET:
 	}
 
@@ -200,5 +268,5 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
 		return fmt.Errorf("failed to reply with error: %w", err)
 	}
-	return fmt.Errorf("implement me!")
+	return nil
 }
