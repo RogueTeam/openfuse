@@ -1,3 +1,5 @@
+//go:build openbsd
+
 package fuse
 
 // Mapped directly from struct fusefs_args

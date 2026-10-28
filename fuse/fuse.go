@@ -11,11 +11,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Last time checked 8.0
 const FuseBufMaxSize = 4096 * 1024 // 4MB
 
 const DevicePath = "/dev/fuse0"
 
-// Fuse instance with its own file descriptor
+// Instance, never create by hand. Always use Mount
 type Instance struct {
 	// Mountpoint, used during close for unmount
 	Mountpoint string
@@ -59,6 +60,8 @@ type Options struct {
 	// The Filesystem is Read only
 	ReadOnly bool
 }
+
+const MaxPendingEvents = 1024
 
 // Apply all the defaults
 func (o *Options) Defaults() {
@@ -109,7 +112,10 @@ func Mount(dir string, o Options) (i *Instance, err error) {
 		mountFlags |= unix.MNT_NOATIME
 	}
 
-	i = &Instance{Mountpoint: dir, Fd: fd}
+	i = &Instance{
+		Mountpoint: dir,
+		Fd:         fd,
+	}
 
 	var fuseArgs FuseFsArgs
 	fuseArgs.Name, err = unix.BytePtrFromString(o.Name)
