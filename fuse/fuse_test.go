@@ -12,7 +12,7 @@ import (
 
 func Test_Mount(t *testing.T) {
 	t.Run("Single instance", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "single"}, &fuse.NopHandler{})
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "single"}, &testsuite.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}
@@ -24,7 +24,7 @@ func Test_Mount(t *testing.T) {
 		})
 	})
 	t.Run("Multiple instances", func(t *testing.T) {
-		i1, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "first"}, &fuse.NopHandler{})
+		i1, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "first"}, &testsuite.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance 1")
 		}
@@ -35,7 +35,7 @@ func Test_Mount(t *testing.T) {
 			}
 		})
 
-		i2, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "second"}, &fuse.NopHandler{})
+		i2, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "second"}, &testsuite.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance 2")
 		}
@@ -50,7 +50,7 @@ func Test_Mount(t *testing.T) {
 
 func Test_Serve(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, &fuse.NopHandler{})
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, &testsuite.NopHandler{})
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}

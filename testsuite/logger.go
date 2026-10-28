@@ -1,3 +1,5 @@
+//go:build openbsd
+
 package testsuite
 
 import (

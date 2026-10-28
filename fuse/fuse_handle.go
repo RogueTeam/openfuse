@@ -13,10 +13,6 @@ import (
 
 type Handler interface{}
 
-type NopHandler struct{}
-
-var _ Handler = (*NopHandler)(nil)
-
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
 	outHeader := FuseOutHeader{
 		Length: uint32(FuseOutHeaderSize),
@@ -54,6 +50,12 @@ func (f *Fuse[T]) ReplyValue[O FuseAttrOut | FuseInitOut |
 // Handle function responsible of handling requests to then route them to the upper
 func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (err error) {
 	logger = logger.WithGroup("Handle buffer").With("blength", len(b))
+
+	// Critical error - No way to receive other packets from the kernel
+	if len(b) < int(FuseInHeaderSize) {
+		logger.ErrorContext(ctx, "Expecting at least the size of the FuseInHeader")
+		return fmt.Errorf("expecting at least the size of the header")
+	}
 
 	header := (*FuseInHeader)(unsafe.Pointer(&b[0]))
 	if int(header.Length) != len(b) {
