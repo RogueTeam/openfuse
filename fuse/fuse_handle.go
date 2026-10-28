@@ -11,7 +11,46 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type Handler interface{}
+var ErrCritical = fmt.Errorf("critical error")
+
+// HError wrapper to easily respond with errors from the handler
+// Check for already constructed fuse.HError* values for predefined values
+type HError struct {
+	// when value is 0 errno fallbacks to unix.EINVAL
+	Errno unix.Errno
+	// Traditional go error used by the logger
+	// When the value errors.Is(e.Error, ErrCritical) == true
+	// the handle returns a wrapper error that fill force the serve function to stop
+	GoError error
+}
+
+var _ error = (*HError)(nil)
+
+func (e *HError) getErrno() (errno unix.Errno) {
+	if e.Errno == 0 {
+		return unix.EINVAL
+	}
+	return e.Errno
+}
+
+func (e *HError) Error() (s string) {
+	errno := e.getErrno()
+	if e.GoError == nil {
+		return fmt.Sprintf("errno: %d: %s", errno, errno.Error())
+	}
+	return fmt.Sprintf("%s: errno %d: %s", e.GoError, errno, errno.Error())
+}
+
+func (e *HError) String() (s string) { return e.Error() }
+
+var (
+	ErrorNotSupported = &HError{Errno: unix.ENOTSUP, GoError: fmt.Errorf("operation not supported")}
+	ErrorNotFound     = &HError{Errno: unix.ENOENT, GoError: fmt.Errorf("not found")}
+)
+
+type Handler interface {
+	GetAttr(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseGetattrIn) (out FuseAttrOut, err *HError)
+}
 
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
 	outHeader := FuseOutHeader{
@@ -59,15 +98,51 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 
 	header := (*FuseInHeader)(unsafe.Pointer(&b[0]))
 	if int(header.Length) != len(b) {
+		logger.
+			With("expected-size", header.Length).
+			With("received-size", len(b)).
+			ErrorContext(ctx, "Expecting the buffer size being the same as the reported one in the header")
 		return fmt.Errorf("expecting the header size match the size of the received buffer: got(%d) != available(%d)", header.Length, len(b))
 	}
 
-	inB := b[FuseInHeaderSize:]
+	// Raw input buffer
+	inBuffer := b[FuseInHeaderSize:]
+
+	logger = logger.
+		WithGroup(header.Opcode.String()).
+		With("remaining-size", len(inBuffer))
+
+	logger.DebugContext(ctx, "Handling")
+
 	switch header.Opcode {
 	default:
 		return fmt.Errorf("unknown opcode: %d", header.Opcode)
 	case FusebufTypeLOOKUP:
 	case FusebufTypeGETATTR:
+		if len(inBuffer) != FuseGetattrInSize {
+			logger.
+				With("expecting", FuseGetattrInSize).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		getattr := (*FuseGetattrIn)(unsafe.Pointer(&inBuffer[0]))
+
+		out, hErr := f.Handler.GetAttr(ctx, logger, header, getattr)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeSETATTR:
 	case FusebufTypeREADLINK:
 	case FusebufTypeSYMLINK:
@@ -85,16 +160,15 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 	case FusebufTypeFSYNC:
 	case FusebufTypeFLUSH:
 	case FusebufTypeINIT:
-		logger = logger.WithGroup("Init")
-		if len(inB) != FuseInitInSize {
+		if len(inBuffer) != FuseInitInSize {
 			logger.
 				With("expecting", FuseInitInSize).
-				With("received", len(inB)).
+				With("received", len(inBuffer)).
 				ErrorContext(ctx, "invalid payload size")
 			return f.ReplyError(header, unix.EINVAL)
 		}
 
-		inInit := (*FuseInitIn)(unsafe.Pointer(&inB[0]))
+		inInit := (*FuseInitIn)(unsafe.Pointer(&inBuffer[0]))
 		if inInit.Major != FuseKernelVersion {
 			logger.
 				With("expecting", FuseKernelVersion).
@@ -109,6 +183,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			MaxWrite: uint32(f.MaxWrite),
 		})
 		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
@@ -119,5 +194,11 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 	case FusebufTypeFORGET:
 	}
 
+	logger.ErrorContext(ctx, "Not implemented")
+	err = f.ReplyError(header, unix.ENOTSUP)
+	if err != nil {
+		logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+		return fmt.Errorf("failed to reply with error: %w", err)
+	}
 	return fmt.Errorf("implement me!")
 }

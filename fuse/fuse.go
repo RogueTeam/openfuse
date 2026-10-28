@@ -69,17 +69,17 @@ func (f *Fuse[T]) Close() (err error) {
 		return fmt.Errorf("already closed")
 	}
 
+	err0 := unix.Close(f.Fd)
 	err1 := unix.Unmount(f.Mountpoint, unix.MNT_FORCE)
-	err2 := unix.Close(f.Fd)
 	switch {
-	case err1 == nil && err2 == nil:
+	case err1 == nil && err0 == nil:
 		return nil
-	case err1 != nil && err2 == nil:
+	case err1 != nil && err0 == nil:
 		return fmt.Errorf("failed to unmount: %w", err1)
-	case err1 == nil && err2 != nil:
-		return fmt.Errorf("failed to close file descriptor: %w", err2)
+	case err1 == nil && err0 != nil:
+		return fmt.Errorf("failed to close file descriptor: %w", err0)
 	default:
-		return fmt.Errorf("multiple errors: %w", errors.Join(err1, err2))
+		return fmt.Errorf("multiple errors: %w", errors.Join(err1, err0))
 	}
 }
 

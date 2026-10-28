@@ -22,12 +22,13 @@ type FuseAttr struct {
 	Atime     uint64
 	Mtime     uint64
 	Ctime     uint64
-	Atimesec  uint64
-	Mtimesec  uint64
-	Ctimesec  uint64
+	Atimesec  uint32
+	Mtimesec  uint32
+	Ctimesec  uint32
 	Mode      uint32
 	Nlink     uint32
-	Uid, Gid  uint32
+	Uid       uint32
+	Gid       uint32
 	Rdev      uint32
 	Blocksize uint32
 	Padding   uint32

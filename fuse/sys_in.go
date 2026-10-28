@@ -111,6 +111,8 @@ type FuseGetattrIn struct {
 	FileHandle   uint64 // Not implemented
 }
 
+const FuseGetattrInSize = int(unsafe.Sizeof(FuseGetattrIn{}))
+
 type FuseSetattrIn struct {
 	Valid      uint32
 	Padding    uint32
