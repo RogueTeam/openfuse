@@ -5,6 +5,7 @@ package fshandler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -30,8 +31,11 @@ func HErrorFromGoError(err error) (hErr *fuse.HError) {
 	}
 }
 
-type filehandle struct {
-	handle any
+type handle struct {
+	ino    uint64
+	handle fs.File
+	// Used for readdir
+	dirOffset int
 }
 
 type inode struct {
@@ -39,14 +43,18 @@ type inode struct {
 	protected bool
 	// path to pass to fs.FS
 	path string
+	// reference to parent node
+	parent *inode
+	// reference to known children
+	children map[uint64]*inode
 }
 
 type Handler struct {
-	fs                fs.FS
-	nextHandle        atomic.Uint64
-	nextInode         atomic.Uint64
-	fileHandlesTables map[uint64]*filehandle
-	inodesTable       map[uint64]*inode
+	fs           fs.FS
+	nextHandle   atomic.Uint64
+	nextInode    atomic.Uint64
+	handlesTable map[uint64]*handle
+	inodesTable  map[uint64]*inode
 }
 
 var _ fuse.Handler = (*Handler)(nil)
@@ -123,20 +131,34 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 	}
 
 	// TODO: This prototype should also handle the flags, but how?
-	fhObj, err := h.fs.Open(inode.path)
+	file, err := h.fs.Open(inode.path)
 	if err != nil {
 		// TODO: We just failed, should we remove the entry from the inodes list?
 		return out, HErrorFromGoError(err)
 	}
 
-	fh := h.nextHandle.Add(1)
+	info, err := file.Stat()
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
 
-	h.fileHandlesTables[fh] = &filehandle{
-		handle: fhObj,
+	if !info.IsDir() {
+		file.Close()
+		return out, &fuse.HError{
+			Errno:   unix.ENOTDIR,
+			GoError: fmt.Errorf("is not a directory"),
+		}
+	}
+
+	fd := h.nextHandle.Add(1)
+
+	h.handlesTable[fd] = &handle{
+		ino:    header.NodeId,
+		handle: file,
 	}
 
 	out = fuse.FuseOpenOut{
-		FileHandle: fh,
+		FileHandle: fd,
 		OpenFlags:  0,
 		Padding:    0,
 	}
@@ -147,10 +169,10 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 // fs.StatFS
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
-		fs:                f,
-		fileHandlesTables: make(map[uint64]*filehandle),
-		inodesTable:       map[uint64]*inode{},
+		fs:           f,
+		handlesTable: make(map[uint64]*handle),
+		inodesTable:  map[uint64]*inode{},
 	}
-	h.inodesTable[h.nextInode.Add(1)] = &inode{protected: true, path: "."}
+	h.inodesTable[h.nextInode.Add(1)] = &inode{protected: true, path: ".", children: make(map[uint64]*inode)}
 	return h
 }
