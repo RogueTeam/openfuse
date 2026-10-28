@@ -235,6 +235,30 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeREADDIR:
+		if len(inBuffer) != FuseReadInSize {
+			logger.
+				With("expecting", FuseOpenInSize).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		inRead := (*FuseReadIn)(unsafe.Pointer(&inBuffer[0]))
+
+		out, hErr := f.Handler.Readdir(ctx, logger, header, inRead)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeRELEASEDIR:
 	case FusebufTypeDESTROY:
 		if len(inBuffer) != 0 {
