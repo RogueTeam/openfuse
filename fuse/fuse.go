@@ -16,18 +16,18 @@ const FuseBufMaxSize = 4096 * 1024 // 4MB
 
 const DevicePath = "/dev/fuse0"
 
-// Instance, never create by hand. Always use Mount
-type Instance struct {
-	// Mountpoint, used during close for unmount
+// Fuse, never create by hand. Always use Mount
+type Fuse struct {
+	// READ-Only Mountpoint, used during close for unmount
 	Mountpoint string
-	// File descriptor to the underlying
+	// READ-Only  File descriptor to the underlying
 	Fd int
 }
 
-// Closes the file descriptor related to the instance
-func (i *Instance) Close() (err error) {
-	err1 := unix.Unmount(i.Mountpoint, unix.MNT_FORCE)
-	err2 := unix.Close(i.Fd)
+// Unmounts and Closes the file descriptor related to the instance
+func (f *Fuse) Close() (err error) {
+	err1 := unix.Unmount(f.Mountpoint, unix.MNT_FORCE)
+	err2 := unix.Close(f.Fd)
 	switch {
 	case err1 == nil && err2 == nil:
 		return nil
@@ -82,7 +82,7 @@ func (o *Options) Validate() (err error) {
 }
 
 // Creates a new FUSE instance
-func Mount(dir string, o Options) (i *Instance, err error) {
+func Mount(dir string, o Options) (i *Fuse, err error) {
 	if dir == "" {
 		return nil, fmt.Errorf("no directory provided")
 	}
@@ -112,7 +112,7 @@ func Mount(dir string, o Options) (i *Instance, err error) {
 		mountFlags |= unix.MNT_NOATIME
 	}
 
-	i = &Instance{
+	i = &Fuse{
 		Mountpoint: dir,
 		Fd:         fd,
 	}
