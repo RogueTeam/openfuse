@@ -135,10 +135,10 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 		}
 	}
 
-	fd, _ := h.fileHandles.New(inode, file)
+	fh := h.fileHandles.New(inode, file)
 
 	out = fuse.FuseOpenOut{
-		FileHandle: fd,
+		FileHandle: fh.FileDescriptor,
 		OpenFlags:  0,
 		Padding:    0,
 	}
@@ -232,6 +232,39 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 	}
 
 	return out, nil
+}
+
+func (h *Handler) ReleaseDir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReleaseIn) (hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+	if fh == nil {
+		return fuse.ErrorNotFound
+	}
+
+	if fh.Inode != inode {
+		return fuse.ErrorPermissionDenied
+	}
+
+	fh.Handle.Close()
+	h.fileHandles.Del(fh.FileDescriptor)
+
+	return nil
+}
+
+func (h *Handler) Forget(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseForgetIn) (hErr *fuse.HError) {
+	fmt.Println(header, in)
+
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	h.nodes.Del(inode.NodeId)
+	return nil
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations

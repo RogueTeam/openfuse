@@ -64,6 +64,10 @@ type Handler interface {
 	Readdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out FuseDirEntries, hErr *HError)
 	// Handle lookup
 	Lookup(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (out FuseEntryOut, hErr *HError)
+	// Releases a directory handle
+	ReleaseDir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReleaseIn) (hErr *HError)
+	// Releases a inode entry
+	Forget(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseForgetIn) (hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -314,6 +318,30 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeRELEASEDIR:
+		if len(inBuffer) != FuseReleaseInSize {
+			logger.
+				With("expecting", FuseReleaseInSize).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		inRelease := (*FuseReleaseIn)(unsafe.Pointer(&inBuffer[0]))
+
+		hErr := f.Handler.ReleaseDir(ctx, logger, header, inRelease)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeDESTROY:
 		if len(inBuffer) != 0 {
 			logger.
@@ -338,6 +366,30 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return ErrDestroyed
 	case FusebufTypeFORGET:
+		if len(inBuffer) != FuseForgetInSize {
+			logger.
+				With("expecting", FuseForgetInSize).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		inForget := (*FuseForgetIn)(unsafe.Pointer(&inBuffer[0]))
+
+		hErr := f.Handler.Forget(ctx, logger, header, inForget)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	}
 
 	logger.ErrorContext(ctx, "Not implemented")

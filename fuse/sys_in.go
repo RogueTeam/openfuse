@@ -105,6 +105,8 @@ type FuseForgetIn struct {
 	Nlookup uint64
 }
 
+const FuseForgetInSize = int(unsafe.Sizeof(FuseForgetIn{}))
+
 type FuseGetattrIn struct {
 	GetattrFlags uint32 // Not implemented
 	Dummy        uint32
@@ -187,6 +189,8 @@ type FuseReleaseIn struct {
 	ReleaseFlags uint32
 	LockOwner    uint64
 }
+
+const FuseReleaseInSize = int(unsafe.Sizeof(FuseReleaseIn{}))
 
 type FuseFsyncIn struct {
 	FileHandle uint64
