@@ -3,14 +3,13 @@
 package tables
 
 import (
-	"sync"
-	"sync/atomic"
-
 	"github.com/RogueTeam/openfuse/fuse"
 )
 
 type Inode struct {
 	NodeId uint64
+	// Counter for every lookup/forget
+	Viewers uint64
 	// Special condition that prevents an inode from being removed
 	Protected bool
 	// Path of the node
@@ -20,31 +19,39 @@ type Inode struct {
 }
 
 type InodeTable struct {
-	once sync.Once
-	next atomic.Uint64
+	next uint64
 
 	Paths map[string]*Inode
 	Nodes map[uint64]*Inode
 }
 
 func (t *InodeTable) init() {
-	t.once.Do(func() {
+	if t.Paths == nil {
 		t.Paths = make(map[string]*Inode)
+	}
+	if t.Nodes == nil {
 		t.Nodes = make(map[uint64]*Inode)
-	})
+	}
 }
 
-// Get a inode based on path or creates a new one
-func (t *InodeTable) Get(path string, protected bool, parent *Inode) (inode *Inode) {
+// Creates a new inode by its path or retrieves a existing
+func (t *InodeTable) New(path string, lookup, protected bool, parent *Inode) (inode *Inode) {
 	t.init()
+
+	defer func() {
+		if inode != nil && lookup {
+			inode.Viewers++
+		}
+	}()
 
 	inode, found := t.Paths[path]
 	if found {
 		return inode
 	}
 
+	t.next++
 	inode = &Inode{
-		NodeId:    t.next.Add(1),
+		NodeId:    t.next,
 		Protected: protected,
 		Path:      path,
 	}
@@ -55,7 +62,13 @@ func (t *InodeTable) Get(path string, protected bool, parent *Inode) (inode *Ino
 	return inode
 }
 
-// Get an inode by its node id, returns nil if nothing was found
+func (t *InodeTable) GetByPath(path string) (inode *Inode) {
+	t.init()
+
+	inode, _ = t.Paths[path]
+	return inode
+}
+
 func (t *InodeTable) GetByIno(ino uint64) (inode *Inode) {
 	t.init()
 
@@ -63,22 +76,32 @@ func (t *InodeTable) GetByIno(ino uint64) (inode *Inode) {
 	return inode
 }
 
-func (t *InodeTable) DelByPath(path string) {
+func (t *InodeTable) ForgetByPath(path string) {
+	t.init()
+
 	inode, found := t.Paths[path]
 	if !found {
 		return
 	}
-	t.Del(inode.NodeId)
+	t.ForgetByIno(inode.NodeId)
 }
 
-func (t *InodeTable) Del(ino uint64) (hErr *fuse.HError) {
+func (t *InodeTable) ForgetByIno(ino uint64) (hErr *fuse.HError) {
+	t.init()
+
 	inode, found := t.Nodes[ino]
 	if !found {
 		return fuse.ErrorNotFound
 	}
 
+	inode.Viewers--
 	if inode.Protected {
 		return fuse.ErrorPermissionDenied
+	}
+
+	// There are still viewers for this inode
+	if inode.Viewers > 0 {
+		return nil
 	}
 
 	// Delete references

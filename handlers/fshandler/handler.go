@@ -78,6 +78,15 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 
 // Is not our responsability to destroying anything
 func (h *Handler) Destroy(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader) (hErr *fuse.HError) {
+	destroyFS, ok := h.fs.(DestroyFS)
+	if ok {
+		return HErrorFromGoError(destroyFS.Destroy())
+	}
+
+	for _, handle := range h.fileHandles.Handles {
+		handle.Handle.Close()
+	}
+
 	return nil
 }
 
@@ -149,7 +158,7 @@ insertCache:
 		entryPath := path.Join(fh.Inode.Path, entryName)
 		dirent := fuse.FuseDirent{
 			Header: fuse.FuseDirentHeader{
-				Ino:     h.nodes.Get(entryPath, false, fh.Inode).NodeId,
+				Ino:     h.nodes.New(entryPath, false, false, fh.Inode).NodeId,
 				Off:     offset,
 				Namelen: uint32(len(entryName)),
 				Type:    tables.ModeTypeFromFileMode(info.Mode()),
@@ -200,7 +209,7 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 		return out, HErrorFromGoError(err)
 	}
 
-	targetInode := h.nodes.Get(path.Join(inode.Path, name), false, inode)
+	targetInode := h.nodes.New(path.Join(inode.Path, name), true, false, inode)
 
 	out = fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
@@ -238,7 +247,7 @@ func (h *Handler) Forget(ctx context.Context, logger *slog.Logger, header *fuse.
 		return fuse.ErrorNotFound
 	}
 
-	return h.nodes.Del(inode.NodeId)
+	return h.nodes.ForgetByIno(inode.NodeId)
 }
 
 func (h *Handler) Open(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseOpenIn) (out fuse.FuseOpenOut, hErr *fuse.HError) {
@@ -352,6 +361,6 @@ func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,
 	}
-	h.nodes.Get(".", true, nil)
+	h.nodes.New(".", false, true, nil)
 	return h
 }

@@ -16,7 +16,8 @@ type OpenFlagsFS interface {
 	OpenFlags(name string, flags uint32) (file fs.File, err error)
 }
 
-type ReadAtFile interface {
-	fs.File
-	ReadAt(b []byte, off int64) (n int, err error)
+// Permits the filesystem to run custom cleanup code when Destroy message is received from the kernel
+type DestroyFS interface {
+	fs.FS
+	Destroy() (err error)
 }
