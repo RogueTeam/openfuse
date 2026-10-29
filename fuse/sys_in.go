@@ -7,30 +7,30 @@ import "unsafe"
 type FusebufType uint32
 
 const (
-	FusebufTypeLOOKUP     FusebufType = 1
-	FusebufTypeGETATTR    FusebufType = 3
-	FusebufTypeSETATTR    FusebufType = 4
-	FusebufTypeREADLINK   FusebufType = 5
-	FusebufTypeSYMLINK    FusebufType = 6
-	FusebufTypeMKNOD      FusebufType = 8
-	FusebufTypeMKDIR      FusebufType = 9
-	FusebufTypeUNLINK     FusebufType = 10
-	FusebufTypeRMDIR      FusebufType = 11
-	FusebufTypeRENAME     FusebufType = 12
-	FusebufTypeLINK       FusebufType = 13
-	FusebufTypeOPEN       FusebufType = 14
-	FusebufTypeREAD       FusebufType = 15
-	FusebufTypeWRITE      FusebufType = 16
-	FusebufTypeSTATFS     FusebufType = 17
-	FusebufTypeRELEASE    FusebufType = 18
-	FusebufTypeFSYNC      FusebufType = 20
-	FusebufTypeFLUSH      FusebufType = 25
-	FusebufTypeINIT       FusebufType = 26
-	FusebufTypeOPENDIR    FusebufType = 27
-	FusebufTypeREADDIR    FusebufType = 28
-	FusebufTypeRELEASEDIR FusebufType = 29
-	FusebufTypeDESTROY    FusebufType = 38
-	FusebufTypeFORGET     FusebufType = 2
+	FusebufTypeLOOKUP     FusebufType = 1  // Supported by 8.0
+	FusebufTypeGETATTR    FusebufType = 3  // Supported by 8.0
+	FusebufTypeSETATTR    FusebufType = 4  // Supported by 8.0
+	FusebufTypeREADLINK   FusebufType = 5  // Supported by 8.0
+	FusebufTypeSYMLINK    FusebufType = 6  // Supported by 8.0
+	FusebufTypeMKNOD      FusebufType = 8  // Supported by 8.0
+	FusebufTypeMKDIR      FusebufType = 9  // Supported by 8.0
+	FusebufTypeUNLINK     FusebufType = 10 // Supported by 8.0
+	FusebufTypeRMDIR      FusebufType = 11 // Supported by 8.0
+	FusebufTypeRENAME     FusebufType = 12 // Supported by 8.0
+	FusebufTypeLINK       FusebufType = 13 // Supported by 8.0
+	FusebufTypeOPEN       FusebufType = 14 // Supported by 8.0
+	FusebufTypeREAD       FusebufType = 15 // Supported by 8.0
+	FusebufTypeWRITE      FusebufType = 16 // Supported by 8.0
+	FusebufTypeSTATFS     FusebufType = 17 // Supported by 8.0
+	FusebufTypeRELEASE    FusebufType = 18 // Supported by 8.0
+	FusebufTypeFSYNC      FusebufType = 20 // Supported by 8.0
+	FusebufTypeFLUSH      FusebufType = 25 // Supported by 8.0
+	FusebufTypeINIT       FusebufType = 26 // Supported by 8.0
+	FusebufTypeOPENDIR    FusebufType = 27 // Supported by 8.0
+	FusebufTypeREADDIR    FusebufType = 28 // Supported by 8.0
+	FusebufTypeRELEASEDIR FusebufType = 29 // Supported by 8.0
+	FusebufTypeDESTROY    FusebufType = 38 // Supported by 8.0
+	FusebufTypeFORGET     FusebufType = 2  // Supported by 8.0
 )
 
 func (t FusebufType) String() (s string) {
