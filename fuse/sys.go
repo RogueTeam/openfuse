@@ -2,6 +2,10 @@
 
 package fuse
 
+import (
+	"unsafe"
+)
+
 const (
 	FuseKernelVersion      = 7
 	FuseKernelMinorVersion = 19
@@ -33,3 +37,51 @@ type FuseAttr struct {
 	Blocksize uint32
 	Padding   uint32
 }
+
+type FuseDirentHeader struct {
+	Ino     uint64
+	Off     uint64
+	Namelen uint32
+	Type    uint32
+}
+
+const FuseDirentHeaderSize = unsafe.Sizeof(FuseDirentHeader{})
+
+type FuseDirent struct {
+	Header FuseDirentHeader
+	Name   []byte
+}
+
+func (e *FuseDirent) Size() (size int) {
+	return int(FuseDirentHeaderSize) + len(e.Name)
+}
+
+// Helper type for constructing the FuseDirent list
+type FuseDirEntries struct {
+	Buffer []byte
+}
+
+func (e *FuseDirEntries) Len() (length int) {
+	return len(e.Buffer)
+}
+
+func (e *FuseDirEntries) Append(entry *FuseDirent) {
+	rawSize := int(FuseDirentHeaderSize) + len(entry.Name)
+	length := (rawSize + 7 /* Sizeof(uint64) - 1 */) & ^7 /* Sizeof(uint64) - 1 */
+	padding := length - rawSize
+
+	if cap(e.Buffer) < length {
+		newBuffer := make([]byte, len(e.Buffer), len(e.Buffer)+length)
+		copy(newBuffer, e.Buffer)
+		e.Buffer = newBuffer
+	}
+
+	headerBuf := unsafe.Slice((*byte)(unsafe.Pointer(&entry.Header)), FuseDirentHeaderSize)
+	e.Buffer = append(e.Buffer, headerBuf...)
+	e.Buffer = append(e.Buffer, entry.Name...)
+	if padding > 0 {
+		e.Buffer = append(e.Buffer, make([]byte, padding)...)
+	}
+}
+
+const FuseDirentSize = unsafe.Sizeof(FuseDirent{})

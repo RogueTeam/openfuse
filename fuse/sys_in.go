@@ -169,6 +169,8 @@ type FuseReadIn struct {
 	Padding    uint32
 }
 
+const FuseReadInSize = int(unsafe.Sizeof(FuseReadIn{}))
+
 type FuseWriteIn struct {
 	FileHandle uint64
 	Offset     uint64

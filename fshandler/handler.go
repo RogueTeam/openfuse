@@ -6,10 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
-	"sync/atomic"
+	"path"
+	"strings"
 
 	"github.com/RogueTeam/gopenfuse/fuse"
 	"golang.org/x/sys/unix"
@@ -31,52 +33,35 @@ func HErrorFromGoError(err error) (hErr *fuse.HError) {
 	}
 }
 
-type handle struct {
-	ino    uint64
-	handle fs.File
-	// Used for readdir
-	dirOffset int
-}
-
-type inode struct {
-	// Special flag to prevent nodes from being removed
-	protected bool
-	// path to pass to fs.FS
-	path string
-	// reference to parent node
-	parent *inode
-	// reference to known children
-	children map[uint64]*inode
-}
-
 type Handler struct {
-	fs           fs.FS
-	nextHandle   atomic.Uint64
-	nextInode    atomic.Uint64
-	handlesTable map[uint64]*handle
-	inodesTable  map[uint64]*inode
+	fs          fs.FS
+	fileHandles FileHandlesTable
+	nodes       InodeTable
 }
 
 var _ fuse.Handler = (*Handler)(nil)
 
-func FuseAttrFromFileInfo(header *fuse.FuseInHeader, info fs.FileInfo) (out fuse.FuseAttr) {
-	mode := uint32(info.Mode().Perm())
-	switch info.Mode().Type() {
+func ModeTypeFromFileMode(mode fs.FileMode) (o uint32) {
+	switch mode.Type() {
 	case fs.ModeDir:
-		mode |= unix.S_IFDIR
+		return unix.S_IFDIR
 	case fs.ModeSymlink:
-		mode |= unix.S_IFLNK
+		return unix.S_IFLNK
 	case fs.ModeNamedPipe:
-		mode |= unix.S_IFIFO
+		return unix.S_IFIFO
 	case fs.ModeSocket:
-		mode |= unix.S_IFSOCK
+		return unix.S_IFSOCK
 	case fs.ModeDevice:
-		mode |= unix.S_IFBLK
+		return unix.S_IFBLK
 	case fs.ModeCharDevice:
-		mode |= unix.S_IFCHR
-	case fs.ModeIrregular:
-		mode |= unix.S_IFREG
+		return unix.S_IFCHR
+	default: // case fs.ModeIrregular:
+		return unix.S_IFREG
 	}
+}
+
+func FuseAttrFromFileInfo(header *fuse.FuseInHeader, info fs.FileInfo) (out fuse.FuseAttr) {
+	mode := uint32(info.Mode().Perm()) | ModeTypeFromFileMode(info.Mode())
 	return fuse.FuseAttr{
 		Ino:   header.NodeId,
 		Size:  uint64(info.Size()),
@@ -86,8 +71,8 @@ func FuseAttrFromFileInfo(header *fuse.FuseInHeader, info fs.FileInfo) (out fuse
 }
 
 func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseGetattrIn) (out fuse.FuseAttrOut, hErr *fuse.HError) {
-	inode, found := h.inodesTable[header.NodeId]
-	if !found {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
 		return out, fuse.ErrorNotFound
 	}
 
@@ -96,12 +81,12 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 	var info fs.FileInfo
 	if ok {
 		var err error
-		info, err = statFS.Stat(inode.path)
+		info, err = statFS.Stat(inode.Path)
 		if err != nil {
 			return out, HErrorFromGoError(err)
 		}
 	} else {
-		file, err := h.fs.Open(inode.path)
+		file, err := h.fs.Open(inode.Path)
 		if err != nil {
 			return out, HErrorFromGoError(err)
 		}
@@ -125,13 +110,13 @@ func (h *Handler) Destroy(ctx context.Context, logger *slog.Logger, header *fuse
 }
 
 func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, _ *fuse.FuseOpenIn) (out fuse.FuseOpenOut, hErr *fuse.HError) {
-	inode, found := h.inodesTable[header.NodeId]
-	if !found {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
 		return out, fuse.ErrorNotFound
 	}
 
 	// TODO: This prototype should also handle the flags, but how?
-	file, err := h.fs.Open(inode.path)
+	file, err := h.fs.Open(inode.Path)
 	if err != nil {
 		// TODO: We just failed, should we remove the entry from the inodes list?
 		return out, HErrorFromGoError(err)
@@ -150,12 +135,7 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 		}
 	}
 
-	fd := h.nextHandle.Add(1)
-
-	h.handlesTable[fd] = &handle{
-		ino:    header.NodeId,
-		handle: file,
-	}
+	fd, _ := h.fileHandles.New(inode, file)
 
 	out = fuse.FuseOpenOut{
 		FileHandle: fd,
@@ -165,14 +145,69 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 	return out, nil
 }
 
+func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReadIn) (out fuse.FuseDirEntries, hErr *fuse.HError) {
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+
+	rdFile, ok := fh.Handle.(fs.ReadDirFile)
+	if !ok {
+		return out, &fuse.HError{
+			Errno:   unix.ENOTDIR,
+			GoError: fmt.Errorf("handle is not a directory"),
+		}
+	}
+
+	offset := in.Offset
+
+insertCache:
+	for len(fh.ReaddirCache) > 0 {
+		entry := fh.ReaddirCache[0]
+		fmt.Println(entry.Name())
+
+		info, err := entry.Info()
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		entryName := strings.Trim(entry.Name(), "/")
+		entryPath := path.Join(fh.Inode.Path, entryName)
+		dirent := &fuse.FuseDirent{
+			Header: fuse.FuseDirentHeader{
+				Ino:     h.nodes.Get(entryPath, false, fh.Inode).NodeId,
+				Off:     offset,
+				Namelen: uint32(len(entryName)),
+				Type:    ModeTypeFromFileMode(info.Mode()),
+			},
+			Name: []byte(entryName),
+		}
+
+		if out.Len()+dirent.Size() > int(in.Size) {
+			return out, nil
+		}
+
+		out.Append(dirent)
+		fh.ReaddirCache = fh.ReaddirCache[1:]
+		offset++
+	}
+
+	entries, err := rdFile.ReadDir(64)
+	switch {
+	case err == nil:
+		fh.ReaddirCache = entries
+		goto insertCache
+	case errors.Is(err, io.EOF):
+		fmt.Println(fh.Inode.Path, out.Len())
+		return out, nil
+	default:
+		return out, HErrorFromGoError(err)
+	}
+}
+
 // Provided filesystem may implement any of the following subtypes in order to support more operations
 // fs.StatFS
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
-		fs:           f,
-		handlesTable: make(map[uint64]*handle),
-		inodesTable:  map[uint64]*inode{},
+		fs: f,
 	}
-	h.inodesTable[h.nextInode.Add(1)] = &inode{protected: true, path: ".", children: make(map[uint64]*inode)}
+	h.nodes.Get(".", true, nil)
 	return h
 }

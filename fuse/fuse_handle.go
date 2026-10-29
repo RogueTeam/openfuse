@@ -47,8 +47,9 @@ func (e *HError) Error() (s string) {
 func (e *HError) String() (s string) { return e.Error() }
 
 var (
-	ErrorNotSupported = &HError{Errno: unix.ENOTSUP, GoError: fmt.Errorf("operation not supported")}
-	ErrorNotFound     = &HError{Errno: unix.ENOENT, GoError: fmt.Errorf("not found")}
+	ErrorNotSupported     = &HError{Errno: unix.ENOTSUP, GoError: fmt.Errorf("operation not supported")}
+	ErrorNotFound         = &HError{Errno: unix.ENOENT, GoError: fmt.Errorf("not found")}
+	ErrorPermissionDenied = &HError{Errno: unix.EPERM, GoError: fmt.Errorf("permission denied")}
 )
 
 type Handler interface {
@@ -58,6 +59,8 @@ type Handler interface {
 	Destroy(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (hErr *HError)
 	// Opens a directory identified by the inode in the header
 	OpenDir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseOpenIn) (out FuseOpenOut, hErr *HError)
+	// Handle readdir
+	Readdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out FuseDirEntries, hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -102,6 +105,24 @@ func (f *Fuse[T]) ReplyNoValue(hdr *FuseInHeader) (err error) {
 	}
 
 	_, err = unix.Write(f.Fd, unsafe.Slice((*byte)(unsafe.Pointer(&outHeader)), FuseOutHeaderSize))
+	if err != nil {
+		return fmt.Errorf("failed to write reply: %w", err)
+	}
+	return nil
+}
+
+func (f *Fuse[T]) ReplyBuf(hdr *FuseInHeader, b []byte) (err error) {
+	outHeader := FuseOutHeader{
+		Length: uint32(FuseOutHeaderSize) + uint32(len(b)),
+		Error:  0,
+		Unique: hdr.Unique,
+	}
+
+	parts := [][]byte{
+		unsafe.Slice((*byte)(unsafe.Pointer(&outHeader)), FuseOutHeaderSize),
+		b,
+	}
+	_, err = unix.Writev(f.Fd, parts)
 	if err != nil {
 		return fmt.Errorf("failed to write reply: %w", err)
 	}
@@ -253,7 +274,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return f.ReplyError(header, hErr.getErrno())
 		}
 
-		err := f.ReplyValue(header, &out)
+		err := f.ReplyBuf(header, out.Buffer)
 		if err != nil {
 			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
 			return fmt.Errorf("failed to send reply: %w", err)
