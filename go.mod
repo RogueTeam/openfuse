@@ -1,4 +1,4 @@
-module github.com/RogueTeam/gopenfuse
+module github.com/RogueTeam/openfuse
 
 go 1.27.1
 

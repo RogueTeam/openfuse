@@ -5,7 +5,7 @@ package tables
 import (
 	"io/fs"
 
-	"github.com/RogueTeam/gopenfuse/fuse"
+	"github.com/RogueTeam/openfuse/fuse"
 	"golang.org/x/sys/unix"
 )
 

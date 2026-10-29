@@ -1,10 +1,10 @@
-# gopenfuse
+# openfuse
 
 > IMPORTANT: AI USAGE IS NOT ALLOWED IN THIS PROJECT
 
 A pure Go, BSD Licensed, handcrafted fuse library so you can bring your FUSE ideas to the best operating system in the entire world.
 
-## Coding mantras for this project
+## Proverbs for this project
 
 - Less dependencies meings less things to worry about.
 - `golang.org/x` dependencies count as no dependencies.

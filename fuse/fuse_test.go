@@ -5,9 +5,9 @@ package fuse_test
 import (
 	"testing"
 
-	"github.com/RogueTeam/gopenfuse/fuse"
-	"github.com/RogueTeam/gopenfuse/handlers/fshandler"
-	"github.com/RogueTeam/gopenfuse/testsuite/samplefs"
+	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/testsuite/samplefs"
 )
 
 func Test_Mount(t *testing.T) {

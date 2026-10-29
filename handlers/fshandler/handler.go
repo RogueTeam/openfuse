@@ -13,8 +13,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/RogueTeam/gopenfuse/fuse"
-	"github.com/RogueTeam/gopenfuse/handlers/tables"
+	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/handlers/tables"
 	"golang.org/x/sys/unix"
 )
 

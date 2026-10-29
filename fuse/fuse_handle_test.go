@@ -10,10 +10,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/RogueTeam/gopenfuse/fuse"
-	"github.com/RogueTeam/gopenfuse/handlers/fshandler"
-	"github.com/RogueTeam/gopenfuse/testsuite"
-	"github.com/RogueTeam/gopenfuse/testsuite/samplefs"
+	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/testsuite"
+	"github.com/RogueTeam/openfuse/testsuite/samplefs"
 )
 
 func Test_Getattr(t *testing.T) {
