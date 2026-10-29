@@ -16,6 +16,7 @@ type FileHandle struct {
 	Inode          *Inode
 
 	ReaddirCache []fs.DirEntry
+	CacheBuffer  []byte
 }
 
 type FileHandlesTable struct {

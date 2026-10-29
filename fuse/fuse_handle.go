@@ -50,6 +50,7 @@ func (e *HError) String() (s string) { return e.Error() }
 var (
 	ErrorNotSupported     = &HError{Errno: unix.ENOTSUP, GoError: fmt.Errorf("operation not supported")}
 	ErrorNotFound         = &HError{Errno: unix.ENOENT, GoError: fmt.Errorf("not found")}
+	ErrorInvalidValue     = &HError{Errno: unix.EINVAL, GoError: fmt.Errorf("invalid value")}
 	ErrorPermissionDenied = &HError{Errno: unix.EPERM, GoError: fmt.Errorf("permission denied")}
 )
 
@@ -68,6 +69,12 @@ type Handler interface {
 	ReleaseDir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReleaseIn) (hErr *HError)
 	// Releases a inode entry
 	Forget(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseForgetIn) (hErr *HError)
+	// Open files
+	Open(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseOpenIn) (out FuseOpenOut, hErr *HError)
+	// Releases a file handle
+	Release(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReleaseIn) (hErr *HError)
+	// Reads from a file handle
+	Read(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out []byte, hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -136,6 +143,14 @@ func (f *Fuse[T]) ReplyBuf(hdr *FuseInHeader, b []byte) (err error) {
 	return nil
 }
 
+func ValueFromBytes[T any](b []byte) (v *T, hErr *HError) {
+	if len(b) != int(unsafe.Sizeof(*new(T))) {
+		return nil, ErrorInvalidValue
+	}
+
+	return (*T)(unsafe.Pointer(&b[0])), nil
+}
+
 // Handle function responsible of handling requests to then route them to the upper
 func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (err error) {
 	logger = logger.WithGroup("Handle buffer").With("blength", len(b))
@@ -199,17 +214,13 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeGETATTR:
-		if len(inBuffer) != FuseGetattrInSize {
-			logger.
-				With("expecting", FuseGetattrInSize).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+		inGetattr, hErr := ValueFromBytes[FuseGetattrIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
 		}
 
-		getattr := (*FuseGetattrIn)(unsafe.Pointer(&inBuffer[0]))
-
-		out, hErr := f.Handler.GetAttr(ctx, logger, header, getattr)
+		out, hErr := f.Handler.GetAttr(ctx, logger, header, inGetattr)
 		if hErr != nil {
 			logger.
 				With("error", hErr.Error()).
@@ -232,23 +243,80 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 	case /* TODO: Implement me */ FusebufTypeRMDIR:
 	case /* TODO: Implement me */ FusebufTypeRENAME:
 	case /* TODO: Implement me */ FusebufTypeLINK:
-	case /* TODO: Implement me */ FusebufTypeOPEN:
-	case /* TODO: Implement me */ FusebufTypeREAD:
+	case FusebufTypeOPEN:
+		inOpen, hErr := ValueFromBytes[FuseOpenIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		out, hErr := f.Handler.Open(ctx, logger, header, inOpen)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
+	case FusebufTypeREAD:
+		inRead, hErr := ValueFromBytes[FuseReadIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		out, hErr := f.Handler.Read(ctx, logger, header, inRead)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyBuf(header, out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeWRITE:
 	case /* TODO: Implement me */ FusebufTypeSTATFS:
-	case /* TODO: Implement me */ FusebufTypeRELEASE:
+	case FusebufTypeRELEASE:
+		inRelease, hErr := ValueFromBytes[FuseReleaseIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		hErr = f.Handler.Release(ctx, logger, header, inRelease)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeFSYNC:
 	case /* TODO: Implement me */ FusebufTypeFLUSH:
 	case FusebufTypeINIT:
-		if len(inBuffer) != FuseInitInSize {
-			logger.
-				With("expecting", FuseInitInSize).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+		inInit, hErr := ValueFromBytes[FuseInitIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
 		}
 
-		inInit := (*FuseInitIn)(unsafe.Pointer(&inBuffer[0]))
 		if inInit.Major != FuseKernelVersion {
 			logger.
 				With("expecting", FuseKernelVersion).
@@ -268,15 +336,11 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeOPENDIR:
-		if len(inBuffer) != FuseOpenInSize {
-			logger.
-				With("expecting", FuseOpenInSize).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+		inOpen, hErr := ValueFromBytes[FuseOpenIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
 		}
-
-		inOpen := (*FuseOpenIn)(unsafe.Pointer(&inBuffer[0]))
 
 		out, hErr := f.Handler.OpenDir(ctx, logger, header, inOpen)
 		if hErr != nil {
@@ -293,15 +357,11 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeREADDIR:
-		if len(inBuffer) != FuseReadInSize {
-			logger.
-				With("expecting", FuseOpenInSize).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+		inRead, hErr := ValueFromBytes[FuseReadIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
 		}
-
-		inRead := (*FuseReadIn)(unsafe.Pointer(&inBuffer[0]))
 
 		out, hErr := f.Handler.Readdir(ctx, logger, header, inRead)
 		if hErr != nil {
@@ -318,17 +378,13 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeRELEASEDIR:
-		if len(inBuffer) != FuseReleaseInSize {
-			logger.
-				With("expecting", FuseReleaseInSize).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+		inRelease, hErr := ValueFromBytes[FuseReleaseIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
 		}
 
-		inRelease := (*FuseReleaseIn)(unsafe.Pointer(&inBuffer[0]))
-
-		hErr := f.Handler.ReleaseDir(ctx, logger, header, inRelease)
+		hErr = f.Handler.ReleaseDir(ctx, logger, header, inRelease)
 		if hErr != nil {
 			logger.
 				With("error", hErr.Error()).
@@ -347,7 +403,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("expecting", 0).
 				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
+				ErrorContext(ctx, "expecting no payload")
 			return f.ReplyError(header, unix.EINVAL)
 		}
 
@@ -366,17 +422,13 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return ErrDestroyed
 	case FusebufTypeFORGET:
-		if len(inBuffer) != FuseForgetInSize {
-			logger.
-				With("expecting", FuseForgetInSize).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+		inForget, hErr := ValueFromBytes[FuseForgetIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyError(header, hErr.getErrno())
 		}
 
-		inForget := (*FuseForgetIn)(unsafe.Pointer(&inBuffer[0]))
-
-		hErr := f.Handler.Forget(ctx, logger, header, inForget)
+		hErr = f.Handler.Forget(ctx, logger, header, inForget)
 		if hErr != nil {
 			logger.
 				With("error", hErr.Error()).

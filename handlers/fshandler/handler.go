@@ -81,14 +81,20 @@ func (h *Handler) Destroy(ctx context.Context, logger *slog.Logger, header *fuse
 	return nil
 }
 
-func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, _ *fuse.FuseOpenIn) (out fuse.FuseOpenOut, hErr *fuse.HError) {
+func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseOpenIn) (out fuse.FuseOpenOut, hErr *fuse.HError) {
 	inode := h.nodes.GetByIno(header.NodeId)
 	if inode == nil {
 		return out, fuse.ErrorNotFound
 	}
 
-	// TODO: This prototype should also handle the flags, but how?
-	file, err := h.fs.Open(inode.Path)
+	var err error
+	var file fs.File
+	switch f := h.fs.(type) {
+	case OpenFlagsFS:
+		file, err = f.OpenFlags(inode.Path, in.Flags)
+	default:
+		file, err = f.Open(inode.Path)
+	}
 	if err != nil {
 		// TODO: We just failed, should we remove the entry from the inodes list?
 		return out, HErrorFromGoError(err)
@@ -133,7 +139,6 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 insertCache:
 	for len(fh.ReaddirCache) > 0 {
 		entry := fh.ReaddirCache[0]
-		fmt.Println(entry.Name())
 
 		info, err := entry.Info()
 		if err != nil {
@@ -167,7 +172,6 @@ insertCache:
 		fh.ReaddirCache = entries
 		goto insertCache
 	case errors.Is(err, io.EOF):
-		fmt.Println(fh.Inode.Path, out.Len())
 		return out, nil
 	default:
 		return out, HErrorFromGoError(err)
@@ -235,6 +239,109 @@ func (h *Handler) Forget(ctx context.Context, logger *slog.Logger, header *fuse.
 	}
 
 	return h.nodes.Del(inode.NodeId)
+}
+
+func (h *Handler) Open(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseOpenIn) (out fuse.FuseOpenOut, hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	var err error
+	var file fs.File
+	switch f := h.fs.(type) {
+	case OpenFlagsFS:
+		file, err = f.OpenFlags(inode.Path, in.Flags)
+	default:
+		file, err = f.Open(inode.Path)
+	}
+	if err != nil {
+		// TODO: We just failed, should we remove the entry from the inodes list?
+		return out, HErrorFromGoError(err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	if info.IsDir() {
+		file.Close()
+		return out, &fuse.HError{
+			Errno:   unix.EISDIR,
+			GoError: fmt.Errorf("is a directory"),
+		}
+	}
+
+	fh := h.fileHandles.New(inode, file)
+
+	out = fuse.FuseOpenOut{
+		FileHandle: fh.FileDescriptor,
+		OpenFlags:  0,
+		Padding:    0,
+	}
+	return out, nil
+}
+
+func (h *Handler) Release(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReleaseIn) (hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+	if fh == nil {
+		return fuse.ErrorNotFound
+	}
+
+	if fh.Inode != inode {
+		return fuse.ErrorPermissionDenied
+	}
+
+	err := fh.Handle.Close()
+	if err != nil {
+		logger.With("error-msg", err).WarnContext(ctx, "Failed to close directory handle")
+	}
+	return h.fileHandles.Del(fh.FileDescriptor)
+}
+
+func (h *Handler) Read(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReadIn) (out []byte, hErr *fuse.HError) {
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+
+useCache:
+	// Read from buffer
+	if fh.CacheBuffer != nil {
+		if in.Offset >= uint64(len(fh.CacheBuffer)) {
+			// EOF
+			return nil, nil
+		}
+
+		out = fh.CacheBuffer[in.Offset:min(in.Offset+uint64(in.Size), uint64(len(fh.CacheBuffer)))]
+		return out, nil
+	}
+
+	var err error
+	switch file := fh.Handle.(type) {
+	case ReadAtFile:
+		out = make([]byte, in.Size)
+		n, err := file.ReadAt(out, int64(in.Offset))
+		switch {
+		case err == nil || errors.Is(err, io.EOF):
+			return out[:n], nil
+		default:
+			return nil, HErrorFromGoError(err)
+		}
+	default:
+		fh.CacheBuffer, err = io.ReadAll(file)
+		if err != nil {
+			return nil, HErrorFromGoError(err)
+		}
+
+		if len(fh.CacheBuffer) == 0 {
+			return nil, nil
+		}
+		goto useCache
+	}
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations

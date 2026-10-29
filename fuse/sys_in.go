@@ -105,15 +105,11 @@ type FuseForgetIn struct {
 	Nlookup uint64
 }
 
-const FuseForgetInSize = int(unsafe.Sizeof(FuseForgetIn{}))
-
 type FuseGetattrIn struct {
 	GetattrFlags uint32 // Not implemented
 	Dummy        uint32
 	FileHandle   uint64 // Not implemented
 }
-
-const FuseGetattrInSize = int(unsafe.Sizeof(FuseGetattrIn{}))
 
 type FuseSetattrIn struct {
 	Valid      uint32
@@ -159,8 +155,6 @@ type FuseOpenIn struct {
 	Unused uint32
 }
 
-const FuseOpenInSize = int(unsafe.Sizeof(FuseOpenIn{}))
-
 type FuseReadIn struct {
 	FileHandle uint64
 	Offset     uint64
@@ -170,8 +164,6 @@ type FuseReadIn struct {
 	Flags      uint32
 	Padding    uint32
 }
-
-const FuseReadInSize = int(unsafe.Sizeof(FuseReadIn{}))
 
 type FuseWriteIn struct {
 	FileHandle uint64
@@ -189,8 +181,6 @@ type FuseReleaseIn struct {
 	ReleaseFlags uint32
 	LockOwner    uint64
 }
-
-const FuseReleaseInSize = int(unsafe.Sizeof(FuseReleaseIn{}))
 
 type FuseFsyncIn struct {
 	FileHandle uint64
@@ -211,8 +201,6 @@ type FuseInitIn struct {
 	MaxReadahead uint32
 	Flags        uint32
 }
-
-const FuseInitInSize = int(unsafe.Sizeof(FuseInitIn{}))
 
 const FusebufInSize = max(
 	unsafe.Sizeof(FuseForgetIn{}),

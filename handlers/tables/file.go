@@ -11,6 +11,8 @@ import (
 
 func ModeTypeFromFileMode(mode fs.FileMode) (o uint32) {
 	switch mode.Type() {
+	case 0:
+		return unix.S_IFREG
 	case fs.ModeDir:
 		return unix.S_IFDIR
 	case fs.ModeSymlink:
@@ -19,12 +21,12 @@ func ModeTypeFromFileMode(mode fs.FileMode) (o uint32) {
 		return unix.S_IFIFO
 	case fs.ModeSocket:
 		return unix.S_IFSOCK
+	case fs.ModeDevice | fs.ModeCharDevice:
+		return unix.S_IFCHR
 	case fs.ModeDevice:
 		return unix.S_IFBLK
-	case fs.ModeCharDevice:
-		return unix.S_IFCHR
 	default: // case fs.ModeIrregular:
-		return unix.S_IFREG
+		return 0
 	}
 }
 
