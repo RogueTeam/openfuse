@@ -89,7 +89,7 @@ func Test_Readdir(t *testing.T) {
 				return
 			}
 
-			if !slices.Equal(samplefs.Paths, visited) {
+			if !slices.EqualFunc(samplefs.Paths, visited, func(a samplefs.Entry, b string) bool { return a.Path == b }) {
 				t.Fatalf("visited(%v) doesn't match expected(%v)", visited, samplefs.Paths)
 				return
 			}
