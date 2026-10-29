@@ -3,6 +3,7 @@
 package fuse
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -61,6 +62,8 @@ type Handler interface {
 	OpenDir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseOpenIn) (out FuseOpenOut, hErr *HError)
 	// Handle readdir
 	Readdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out FuseDirEntries, hErr *HError)
+	// Handle lookup
+	Lookup(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (out FuseEntryOut, hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -161,6 +164,36 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 	default:
 		return fmt.Errorf("unknown opcode: %d", header.Opcode)
 	case FusebufTypeLOOKUP:
+		if len(inBuffer) < 2 {
+			logger.
+				With("expecting-at-least", 2).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "invalid payload size")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		idx := bytes.IndexByte(inBuffer, 0x00)
+		if idx == 0 || idx != len(inBuffer)-1 {
+			logger.ErrorContext(ctx, "received invalid C string")
+			return f.ReplyError(header, unix.EINVAL)
+		}
+
+		name := unix.ByteSliceToString(inBuffer)
+
+		out, hErr := f.Handler.Lookup(ctx, logger, header, name)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyError(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeGETATTR:
 		if len(inBuffer) != FuseGetattrInSize {
 			logger.

@@ -170,7 +170,7 @@ insertCache:
 
 		entryName := strings.Trim(entry.Name(), "/")
 		entryPath := path.Join(fh.Inode.Path, entryName)
-		dirent := &fuse.FuseDirent{
+		dirent := fuse.FuseDirent{
 			Header: fuse.FuseDirentHeader{
 				Ino:     h.nodes.Get(entryPath, false, fh.Inode).NodeId,
 				Off:     offset,
@@ -184,7 +184,7 @@ insertCache:
 			return out, nil
 		}
 
-		out.Append(dirent)
+		out.Append(&dirent)
 		fh.ReaddirCache = fh.ReaddirCache[1:]
 		offset++
 	}
@@ -200,6 +200,38 @@ insertCache:
 	default:
 		return out, HErrorFromGoError(err)
 	}
+}
+
+func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, name string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	sub, err := fs.Sub(h.fs, inode.Path)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	file, err := sub.Open(name)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	targetInode := h.nodes.Get(path.Join(inode.Path, name), false, inode)
+
+	out = fuse.FuseEntryOut{
+		NodeId: targetInode.NodeId,
+		Attr:   FuseAttrFromFileInfo(header, info),
+	}
+
+	return out, nil
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/RogueTeam/gopenfuse/fshandler"
@@ -58,8 +59,6 @@ func Test_Readdir(t *testing.T) {
 		logger := testsuite.Logger(t, slog.LevelDebug)
 		go i.Serve(t.Context(), logger)
 
-		mpFs := os.DirFS(i.Mountpoint)
-
 		t.Run("Root", func(t *testing.T) {
 			entries, err := os.ReadDir(i.Mountpoint)
 			if err != nil {
@@ -71,16 +70,27 @@ func Test_Readdir(t *testing.T) {
 		})
 
 		t.Run("Walk", func(t *testing.T) {
+			var visited []string
 			err = fs.WalkDir(
-				mpFs, "",
+				os.DirFS(i.Mountpoint), ".",
 				func(path string, d fs.DirEntry, err error) error {
 					t.Logf("File/Dir: %s %v", path, d)
+					visited = append(visited, path)
 					return nil
 				},
 			)
-
 			if err != nil {
 				t.Fatalf("failed to walk filesystem")
+				return
+			}
+
+			if len(visited) != len(samplefs.Paths) {
+				t.Fatalf("Visited less files than available: visited(%d) != expecting(%d)", len(visited), len(samplefs.Paths))
+				return
+			}
+
+			if !slices.Equal(samplefs.Paths, visited) {
+				t.Fatalf("visited(%v) doesn't match expected(%v)", visited, samplefs.Paths)
 				return
 			}
 		})
