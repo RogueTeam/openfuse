@@ -249,22 +249,20 @@ func (h *Handler) ReleaseDir(ctx context.Context, logger *slog.Logger, header *f
 		return fuse.ErrorPermissionDenied
 	}
 
-	fh.Handle.Close()
-	h.fileHandles.Del(fh.FileDescriptor)
-
-	return nil
+	err := fh.Handle.Close()
+	if err != nil {
+		logger.With("error-msg", err).WarnContext(ctx, "Failed to close directory handle")
+	}
+	return h.fileHandles.Del(fh.FileDescriptor)
 }
 
 func (h *Handler) Forget(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseForgetIn) (hErr *fuse.HError) {
-	fmt.Println(header, in)
-
 	inode := h.nodes.GetByIno(header.NodeId)
 	if inode == nil {
 		return fuse.ErrorNotFound
 	}
 
-	h.nodes.Del(inode.NodeId)
-	return nil
+	return h.nodes.Del(inode.NodeId)
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations
