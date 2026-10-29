@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/RogueTeam/gopenfuse/fuse"
+	"github.com/RogueTeam/gopenfuse/handlers/tables"
 	"golang.org/x/sys/unix"
 )
 
@@ -35,40 +36,11 @@ func HErrorFromGoError(err error) (hErr *fuse.HError) {
 
 type Handler struct {
 	fs          fs.FS
-	fileHandles FileHandlesTable
-	nodes       InodeTable
+	fileHandles tables.FileHandlesTable
+	nodes       tables.InodeTable
 }
 
 var _ fuse.Handler = (*Handler)(nil)
-
-func ModeTypeFromFileMode(mode fs.FileMode) (o uint32) {
-	switch mode.Type() {
-	case fs.ModeDir:
-		return unix.S_IFDIR
-	case fs.ModeSymlink:
-		return unix.S_IFLNK
-	case fs.ModeNamedPipe:
-		return unix.S_IFIFO
-	case fs.ModeSocket:
-		return unix.S_IFSOCK
-	case fs.ModeDevice:
-		return unix.S_IFBLK
-	case fs.ModeCharDevice:
-		return unix.S_IFCHR
-	default: // case fs.ModeIrregular:
-		return unix.S_IFREG
-	}
-}
-
-func FuseAttrFromFileInfo(header *fuse.FuseInHeader, info fs.FileInfo) (out fuse.FuseAttr) {
-	mode := uint32(info.Mode().Perm()) | ModeTypeFromFileMode(info.Mode())
-	return fuse.FuseAttr{
-		Ino:   header.NodeId,
-		Size:  uint64(info.Size()),
-		Mode:  mode,
-		Mtime: uint64(info.ModTime().UnixMilli()),
-	}
-}
 
 func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseGetattrIn) (out fuse.FuseAttrOut, hErr *fuse.HError) {
 	inode := h.nodes.GetByIno(header.NodeId)
@@ -99,7 +71,7 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 	}
 
 	out = fuse.FuseAttrOut{
-		Attr: FuseAttrFromFileInfo(header, info),
+		Attr: tables.FuseAttrFromFileInfo(header, info),
 	}
 	return out, nil
 }
@@ -175,7 +147,7 @@ insertCache:
 				Ino:     h.nodes.Get(entryPath, false, fh.Inode).NodeId,
 				Off:     offset,
 				Namelen: uint32(len(entryName)),
-				Type:    ModeTypeFromFileMode(info.Mode()),
+				Type:    tables.ModeTypeFromFileMode(info.Mode()),
 			},
 			Name: []byte(entryName),
 		}
@@ -228,7 +200,7 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 
 	out = fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
-		Attr:   FuseAttrFromFileInfo(header, info),
+		Attr:   tables.FuseAttrFromFileInfo(header, info),
 	}
 
 	return out, nil
@@ -266,7 +238,9 @@ func (h *Handler) Forget(ctx context.Context, logger *slog.Logger, header *fuse.
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations
-// fs.StatFS
+// When fs.StatFS is implemented any stat operation may be performed directly with the available path without first calling Open
+// When fshandler.MkdirFS is implemented, directory creation is permitted
+// When fshandler.MknodFS is implemented, custom node creation is permitted
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,

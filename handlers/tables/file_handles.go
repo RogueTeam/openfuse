@@ -1,6 +1,6 @@
 //go:build openbsd
 
-package fshandler
+package tables
 
 import (
 	"io/fs"

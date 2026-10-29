@@ -5,8 +5,8 @@ package fuse_test
 import (
 	"testing"
 
-	"github.com/RogueTeam/gopenfuse/fshandler"
 	"github.com/RogueTeam/gopenfuse/fuse"
+	"github.com/RogueTeam/gopenfuse/handlers/fshandler"
 	"github.com/RogueTeam/gopenfuse/testsuite/samplefs"
 )
 

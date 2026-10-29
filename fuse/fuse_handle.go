@@ -223,22 +223,22 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case FusebufTypeSETATTR:
-	case FusebufTypeREADLINK:
-	case FusebufTypeSYMLINK:
-	case FusebufTypeMKNOD:
-	case FusebufTypeMKDIR:
-	case FusebufTypeUNLINK:
-	case FusebufTypeRMDIR:
-	case FusebufTypeRENAME:
-	case FusebufTypeLINK:
-	case FusebufTypeOPEN:
-	case FusebufTypeREAD:
-	case FusebufTypeWRITE:
-	case FusebufTypeSTATFS:
-	case FusebufTypeRELEASE:
-	case FusebufTypeFSYNC:
-	case FusebufTypeFLUSH:
+	case /* TODO: Implement me */ FusebufTypeSETATTR:
+	case /* TODO: Implement me */ FusebufTypeREADLINK:
+	case /* TODO: Implement me */ FusebufTypeSYMLINK:
+	case /* TODO: Implement me */ FusebufTypeMKNOD:
+	case /* TODO: Implement me */ FusebufTypeMKDIR:
+	case /* TODO: Implement me */ FusebufTypeUNLINK:
+	case /* TODO: Implement me */ FusebufTypeRMDIR:
+	case /* TODO: Implement me */ FusebufTypeRENAME:
+	case /* TODO: Implement me */ FusebufTypeLINK:
+	case /* TODO: Implement me */ FusebufTypeOPEN:
+	case /* TODO: Implement me */ FusebufTypeREAD:
+	case /* TODO: Implement me */ FusebufTypeWRITE:
+	case /* TODO: Implement me */ FusebufTypeSTATFS:
+	case /* TODO: Implement me */ FusebufTypeRELEASE:
+	case /* TODO: Implement me */ FusebufTypeFSYNC:
+	case /* TODO: Implement me */ FusebufTypeFLUSH:
 	case FusebufTypeINIT:
 		if len(inBuffer) != FuseInitInSize {
 			logger.
