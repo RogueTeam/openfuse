@@ -355,8 +355,10 @@ useCache:
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations
 // When fs.StatFS is implemented any stat operation may be performed directly with the available path without first calling Open
-// When fshandler.MkdirFS is implemented, directory creation is permitted
-// When fshandler.MknodFS is implemented, custom node creation is permitted
+// When fshandler.OpenFlagsFS is implemented, granular use of flags can be used when opening a file
+// When fshandler.DestroyFS is implemented, custom cleanup code can be ran when the filesystem is unmounted
+// TODO: When fshandler.MkdirFS is implemented, directory creation is permitted
+// TODO: When fshandler.MknodFS is implemented, custom node creation is permitted
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,

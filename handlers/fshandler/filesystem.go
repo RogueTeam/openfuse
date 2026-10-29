@@ -11,6 +11,7 @@ type MkdirFS interface {
 }
 
 // Permits more complex opening of file by receiving the flags from kernel
+// Check OpenBSD open flags for more detail
 type OpenFlagsFS interface {
 	fs.FS
 	OpenFlags(name string, flags uint32) (file fs.File, err error)
