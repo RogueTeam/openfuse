@@ -48,10 +48,13 @@ func (e *HError) Error() (s string) {
 func (e *HError) String() (s string) { return e.Error() }
 
 var (
-	ErrorNotSupported     = &HError{Errno: unix.ENOTSUP, GoError: fmt.Errorf("operation not supported")}
-	ErrorNotFound         = &HError{Errno: unix.ENOENT, GoError: fmt.Errorf("not found")}
-	ErrorInvalidValue     = &HError{Errno: unix.EINVAL, GoError: fmt.Errorf("invalid value")}
-	ErrorPermissionDenied = &HError{Errno: unix.EPERM, GoError: fmt.Errorf("permission denied")}
+	ErrorNotSupported      = &HError{Errno: unix.ENOTSUP, GoError: fmt.Errorf("operation not supported")}
+	ErrorNotFound          = &HError{Errno: unix.ENOENT, GoError: fmt.Errorf("not found")}
+	ErrorInvalidValue      = &HError{Errno: unix.EINVAL, GoError: fmt.Errorf("invalid value")}
+	ErrorPermissionDenied  = &HError{Errno: unix.EPERM, GoError: fmt.Errorf("permission denied")}
+	ErrorIsDirectory       = &HError{Errno: unix.EISDIR, GoError: fmt.Errorf("is a directory")}
+	ErrorNotDirectory      = &HError{Errno: unix.ENOTDIR, GoError: fmt.Errorf("is not a directory")}
+	ErrorBadFileDescriptor = &HError{Errno: unix.EBADF, GoError: fmt.Errorf("bad file descriptor")}
 )
 
 type Handler interface {
@@ -77,7 +80,7 @@ type Handler interface {
 	Read(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out []byte, hErr *HError)
 }
 
-func (f *Fuse[T]) ReplyError(hdr *FuseInHeader, errno unix.Errno) (err error) {
+func (f *Fuse[T]) ReplyErrno(hdr *FuseInHeader, errno unix.Errno) (err error) {
 	outHeader := FuseOutHeader{
 		Length: uint32(FuseOutHeaderSize),
 		Error:  uint32(-errno),
@@ -188,13 +191,13 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 				With("expecting-at-least", 2).
 				With("received", len(inBuffer)).
 				ErrorContext(ctx, "invalid payload size")
-			return f.ReplyError(header, unix.EINVAL)
+			return f.ReplyErrno(header, unix.EINVAL)
 		}
 
 		idx := bytes.IndexByte(inBuffer, 0x00)
 		if idx == 0 || idx != len(inBuffer)-1 {
 			logger.ErrorContext(ctx, "received invalid C string")
-			return f.ReplyError(header, unix.EINVAL)
+			return f.ReplyErrno(header, unix.EINVAL)
 		}
 
 		name := unix.ByteSliceToString(inBuffer)
@@ -204,7 +207,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyValue(header, &out)
@@ -217,7 +220,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inGetattr, hErr := ValueFromBytes[FuseGetattrIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		out, hErr := f.Handler.GetAttr(ctx, logger, header, inGetattr)
@@ -225,7 +228,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyValue(header, &out)
@@ -247,7 +250,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inOpen, hErr := ValueFromBytes[FuseOpenIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		out, hErr := f.Handler.Open(ctx, logger, header, inOpen)
@@ -255,7 +258,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyValue(header, &out)
@@ -268,7 +271,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inRead, hErr := ValueFromBytes[FuseReadIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		out, hErr := f.Handler.Read(ctx, logger, header, inRead)
@@ -276,7 +279,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyBuf(header, out)
@@ -291,7 +294,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inRelease, hErr := ValueFromBytes[FuseReleaseIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		hErr = f.Handler.Release(ctx, logger, header, inRelease)
@@ -299,7 +302,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyNoValue(header)
@@ -314,7 +317,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inInit, hErr := ValueFromBytes[FuseInitIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		if inInit.Major != FuseKernelVersion {
@@ -322,7 +325,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 				With("expecting", FuseKernelVersion).
 				With("received", inInit.Major).
 				ErrorContext(ctx, "fuse kernel major version mismatch")
-			return f.ReplyError(header, unix.EINVAL)
+			return f.ReplyErrno(header, unix.EINVAL)
 		}
 
 		err = f.ReplyValue(header, &FuseInitOut{
@@ -339,7 +342,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inOpen, hErr := ValueFromBytes[FuseOpenIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		out, hErr := f.Handler.OpenDir(ctx, logger, header, inOpen)
@@ -347,7 +350,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyValue(header, &out)
@@ -360,7 +363,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inRead, hErr := ValueFromBytes[FuseReadIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		out, hErr := f.Handler.Readdir(ctx, logger, header, inRead)
@@ -368,7 +371,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyBuf(header, out.Buffer)
@@ -381,7 +384,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inRelease, hErr := ValueFromBytes[FuseReleaseIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		hErr = f.Handler.ReleaseDir(ctx, logger, header, inRelease)
@@ -389,7 +392,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyNoValue(header)
@@ -404,7 +407,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 				With("expecting", 0).
 				With("received", len(inBuffer)).
 				ErrorContext(ctx, "expecting no payload")
-			return f.ReplyError(header, unix.EINVAL)
+			return f.ReplyErrno(header, unix.EINVAL)
 		}
 
 		hErr := f.Handler.Destroy(ctx, logger, header)
@@ -412,7 +415,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyNoValue(header)
@@ -425,7 +428,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		inForget, hErr := ValueFromBytes[FuseForgetIn](inBuffer)
 		if hErr != nil {
 			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		hErr = f.Handler.Forget(ctx, logger, header, inForget)
@@ -433,7 +436,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			logger.
 				With("error", hErr.Error()).
 				ErrorContext(ctx, "Handler Error")
-			return f.ReplyError(header, hErr.getErrno())
+			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
 		err := f.ReplyNoValue(header)
@@ -445,7 +448,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 	}
 
 	logger.ErrorContext(ctx, "Not implemented")
-	err = f.ReplyError(header, unix.ENOTSUP)
+	err = f.ReplyErrno(header, unix.ENOTSUP)
 	if err != nil {
 		logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
 		return fmt.Errorf("failed to reply with error: %w", err)

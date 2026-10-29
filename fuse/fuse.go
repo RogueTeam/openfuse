@@ -21,7 +21,7 @@ const DevicePath = "/dev/fuse0"
 
 // Fuse, never create by hand. Always use Mount
 type Fuse[T Handler] struct {
-	// Raad-Only Handler instance
+	// Read-Only Handler instance
 	Handler T
 	// Read-Only used to monitor if the fuse is running or not
 	Finished atomic.Bool

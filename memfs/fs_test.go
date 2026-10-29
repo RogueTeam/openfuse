@@ -1,6 +1,6 @@
 //go:build openbsd
 
-package fuse_test
+package memfs_test
 
 import (
 	"io/fs"
@@ -12,13 +12,54 @@ import (
 
 	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/memfs"
 	"github.com/RogueTeam/openfuse/testsuite"
-	"github.com/RogueTeam/openfuse/testsuite/samplefs"
 )
+
+func Test_Mount(t *testing.T) {
+	t.Run("Single instance", func(t *testing.T) {
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "single"}, fshandler.New(memfs.New()))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+	})
+	t.Run("Multiple instances", func(t *testing.T) {
+		i1, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "first"}, fshandler.New(memfs.New()))
+		if err != nil {
+			t.Fatal("failed to create fuse instance 1")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance 1")
+			err := i1.Close()
+			if err != nil {
+				t.Errorf("failed to close instance 1: %v", err)
+			}
+		})
+
+		i2, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "second"}, fshandler.New(memfs.New()))
+		if err != nil {
+			t.Fatal("failed to create fuse instance 2")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance 2")
+			err := i2.Close()
+			if err != nil {
+				t.Errorf("failed to close instance 2: %v", err)
+			}
+		})
+	})
+}
 
 func Test_Getattr(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(samplefs.RootFS))
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(memfs.New()))
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}
@@ -45,7 +86,27 @@ func Test_Getattr(t *testing.T) {
 
 func Test_Readdir(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(samplefs.RootFS))
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | os.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, 0o700)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}
@@ -85,13 +146,13 @@ func Test_Readdir(t *testing.T) {
 				return
 			}
 
-			if len(visited) != len(samplefs.Paths) {
-				t.Fatalf("Visited less files than available: visited(%d) != expecting(%d)", len(visited), len(samplefs.Paths))
+			if len(visited) != len(paths) {
+				t.Fatalf("Visited less files than available: visited(%d) != expecting(%d)", len(visited), len(paths))
 				return
 			}
 
-			if !slices.EqualFunc(samplefs.Paths, visited, func(a samplefs.Entry, b string) bool { return a.Path == b }) {
-				t.Fatalf("visited(%v) doesn't match expected(%v)", visited, samplefs.Paths)
+			if !slices.EqualFunc(paths, visited, func(a Entry, b string) bool { return a.Path == b }) {
+				t.Fatalf("visited(%v) doesn't match expected(%v)", visited, paths)
 				return
 			}
 		})
@@ -100,7 +161,27 @@ func Test_Readdir(t *testing.T) {
 
 func Test_OpenRead(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(samplefs.RootFS))
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | os.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, 0o700)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}
@@ -115,7 +196,7 @@ func Test_OpenRead(t *testing.T) {
 		logger := testsuite.Logger(t, slog.LevelDebug)
 		go i.Serve(t.Context(), logger)
 
-		for _, entry := range samplefs.Paths {
+		for _, entry := range paths {
 			if !entry.Mode.IsRegular() {
 				t.Logf("Skipping: %s %v", entry.Path, entry.Mode)
 				continue

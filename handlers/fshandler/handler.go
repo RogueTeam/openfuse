@@ -23,7 +23,14 @@ func HErrorFromGoError(err error) (hErr *fuse.HError) {
 		return nil
 	}
 
+	asHerr, ok := err.(*fuse.HError)
+	if ok {
+		return asHerr
+	}
+
 	switch {
+	case errors.Is(err, fs.ErrClosed):
+		return fuse.ErrorBadFileDescriptor
 	case errors.Is(err, os.ErrNotExist) || os.IsNotExist(err):
 		return fuse.ErrorNotFound
 	default:
@@ -359,6 +366,9 @@ useCache:
 // When fshandler.DestroyFS is implemented, custom cleanup code can be ran when the filesystem is unmounted
 // TODO: When fshandler.MkdirFS is implemented, directory creation is permitted
 // TODO: When fshandler.MknodFS is implemented, custom node creation is permitted
+// Files could also extend their implementation with:
+// When fshandler.ReadAtFile is implemented, no caching will be required for random reads.
+// When fs.ReadDirFile is implemented, child files and directories can be obtained from a handle.
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,

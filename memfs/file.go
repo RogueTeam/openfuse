@@ -1,0 +1,67 @@
+//go:build openbsd
+
+package memfs
+
+import (
+	"bytes"
+	"io"
+	"io/fs"
+
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
+)
+
+type File struct {
+	Closed    bool
+	Reference *Node
+	Cursor    int
+	Contents  []byte
+}
+
+func (f *File) Stat() (info fs.FileInfo, err error) {
+	if f.Closed {
+		return nil, fs.ErrClosed
+	}
+	return &f.Reference.Info, nil
+}
+
+func (f *File) Read(b []byte) (n int, err error) {
+	if f.Closed {
+		return 0, fs.ErrClosed
+	}
+
+	n = copy(b[f.Cursor:], f.Contents)
+	f.Cursor += n
+	if n == 0 {
+		return 0, io.EOF
+	}
+	return n, nil
+}
+
+func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
+	if f.Closed {
+		return 0, fs.ErrClosed
+	}
+
+	if off >= int64(len(f.Contents)) {
+		return 0, io.EOF
+	}
+
+	n = copy(b, f.Contents[off:min(off+int64(len(b)), int64(len(f.Contents)))])
+	return n, nil
+}
+
+func (f *File) Close() (err error) {
+	if f.Closed {
+		return fs.ErrClosed
+	}
+	f.Closed = true
+	if bytes.Equal(f.Contents, f.Reference.Contents) {
+		f.Reference.Contents = f.Contents
+	}
+	return nil
+}
+
+var (
+	_ fs.File              = (*File)(nil)
+	_ fshandler.ReadAtFile = (*File)(nil)
+)
