@@ -47,7 +47,7 @@ func (f *FS) HelperCreateFile[T ~string | ~[]byte](name string, mode fs.FileMode
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	dirNode, err := f.Root.Find(strings.Split(dir, "/"))
+	dirNode, err := f.Root.Find(dir)
 	if err != nil {
 		return fmt.Errorf("failed to find directory part: %s: %w", dir, err)
 	}

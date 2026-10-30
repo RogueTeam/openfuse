@@ -40,6 +40,6 @@ var _ fs.FileInfo = (*fileinfo)(nil)
 func (i *fileinfo) Name() string       { return i.name }
 func (i *fileinfo) Size() int64        { return i.size }
 func (i *fileinfo) Mode() fs.FileMode  { return i.mode }
-func (i *fileinfo) ModTime() time.Time { return i.ModTime() }
+func (i *fileinfo) ModTime() time.Time { return i.mtime }
 func (i *fileinfo) IsDir() bool        { return i.mode.IsDir() }
 func (i *fileinfo) Sys() any           { return nil }

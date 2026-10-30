@@ -92,7 +92,8 @@ func Test_Readdir(t *testing.T) {
 			Contents string
 		}
 		paths := []Entry{
-			{Path: "root", Mode: 0o700 | os.ModeDir},
+			{Path: ".", Mode: 0o700},
+			{Path: "root", Mode: 0o700},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
@@ -100,9 +101,9 @@ func Test_Readdir(t *testing.T) {
 		for _, entry := range paths {
 			switch entry.Mode.Type() {
 			case 0:
-
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
 			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, 0o700)
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
 			}
 		}
 
@@ -167,7 +168,8 @@ func Test_OpenRead(t *testing.T) {
 			Contents string
 		}
 		paths := []Entry{
-			{Path: "root", Mode: 0o700 | os.ModeDir},
+			{Path: ".", Mode: 0o700},
+			{Path: "root", Mode: 0o700},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
@@ -175,9 +177,9 @@ func Test_OpenRead(t *testing.T) {
 		for _, entry := range paths {
 			switch entry.Mode.Type() {
 			case 0:
-
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
 			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, 0o700)
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
 			}
 		}
 

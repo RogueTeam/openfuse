@@ -4,6 +4,15 @@ import (
 	"io/fs"
 )
 
+// implements a complete filesystem with all features enabled
+type FullFS interface {
+	fs.FS
+	fs.StatFS
+	MkdirFS
+	OpenFlagsFS
+	DestroyFS
+}
+
 // Permits the handler to creates directories based on a path
 type MkdirFS interface {
 	fs.FS

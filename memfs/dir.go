@@ -45,7 +45,7 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 		return nil, fs.ErrClosed
 	}
 
-	if d.Cursor == len(d.Reference.Children) {
+	if d.Cursor >= len(d.Reference.Children) {
 		return nil, io.EOF
 	}
 
@@ -56,7 +56,7 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 	slices.SortFunc(dents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 
 	dents = dents[d.Cursor:min(d.Cursor+n, len(dents))]
-	d.Cursor += n
+	d.Cursor += len(dents)
 
 	return dents, nil
 }

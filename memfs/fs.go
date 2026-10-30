@@ -5,6 +5,7 @@ package memfs
 import (
 	"fmt"
 	"io/fs"
+	"path"
 	"strings"
 	"time"
 
@@ -37,13 +38,30 @@ func (n *Node) Open() (file fs.File) {
 	}
 }
 
-func (n *Node) Find(name []string) (node *Node, err error) {
-	if !n.Info.IsDir() {
-		return nil, fuse.ErrorNotDirectory
+func (n *Node) find(name []string) (node *Node, err error) {
+	curr := n
+	for _, part := range name {
+		if part == "." {
+			continue
+		}
+		if !curr.Info.IsDir() {
+			return nil, fuse.ErrorNotDirectory
+		}
+		next, found := curr.Children[part]
+		if !found {
+			return nil, fuse.ErrorNotFound
+		}
+		curr = next
 	}
 
-	fmt.Println(name)
-	return nil, fuse.ErrorNotSupported
+	fmt.Println("----------------------------")
+	fmt.Println(name, curr)
+	fmt.Println("----------------------------")
+	return curr, nil
+}
+
+func (n *Node) Find(name string) (node *Node, err error) {
+	return n.find(strings.Split(path.Clean(name), "/"))
 }
 
 type FS struct {
@@ -51,7 +69,7 @@ type FS struct {
 }
 
 func (f *FS) Open(name string) (file fs.File, err error) {
-	node, err := f.Root.Find(strings.Split(name, "/"))
+	node, err := f.Root.Find(name)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +82,7 @@ func (f *FS) Open(name string) (file fs.File, err error) {
 }
 
 func (f *FS) Stat(name string) (fs.FileInfo, error) {
-	node, err := f.Root.Find(strings.Split(name, "/"))
+	node, err := f.Root.Find(name)
 	if err != nil {
 		return nil, err
 	}
