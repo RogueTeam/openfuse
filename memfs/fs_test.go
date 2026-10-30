@@ -228,7 +228,11 @@ func Test_OpenRead(t *testing.T) {
 
 func Test_Mkdir(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(memfs.New()))
+		i, err := fuse.Mount(
+			t.TempDir(),
+			fuse.Options{Name: "simple"},
+			fshandler.New(memfs.New()),
+		)
 		if err != nil {
 			t.Fatal("failed to create fuse instance")
 		}
@@ -249,6 +253,9 @@ func Test_Mkdir(t *testing.T) {
 		}
 		paths := []Entry{
 			{Path: "example", Perm: 0o700 | os.ModeDir},
+			{Path: "example/1", Perm: 0o755 | os.ModeDir},
+			{Path: "example/2", Perm: 0o755 | os.ModeDir},
+			{Path: "example/3", Perm: 0o744 | os.ModeDir},
 		}
 
 		t.Run("Create", func(t *testing.T) {

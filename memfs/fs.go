@@ -3,7 +3,6 @@
 package memfs
 
 import (
-	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -91,7 +90,6 @@ func (f *FS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (f *FS) Mkdir(name string, mask, mode uint32) (err error) {
-	fmt.Printf("%s - %o %o", name, mask, mode)
 	if mode&unix.S_IFDIR != unix.S_IFDIR {
 		return fuse.ErrorInvalidValue
 	}
