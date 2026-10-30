@@ -225,3 +225,60 @@ func Test_OpenRead(t *testing.T) {
 		}
 	})
 }
+
+func Test_Mkdir(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(memfs.New()))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go i.Serve(t.Context(), logger)
+
+		type Entry struct {
+			Path string
+			Perm fs.FileMode
+		}
+		paths := []Entry{
+			{Path: "example", Perm: 0o700 | os.ModeDir},
+		}
+
+		t.Run("Create", func(t *testing.T) {
+			for _, entry := range paths {
+				t.Run(entry.Path, func(t *testing.T) {
+					fullname := path.Join(i.Mountpoint, entry.Path)
+					err := os.MkdirAll(fullname, entry.Perm)
+					if err != nil {
+						t.Fatalf("failed to create directory: %v", err)
+						return
+					}
+				})
+			}
+		})
+		t.Run("Verify", func(t *testing.T) {
+			for _, entry := range paths {
+				t.Run(entry.Path, func(t *testing.T) {
+					fullname := path.Join(i.Mountpoint, entry.Path)
+					info, err := os.Stat(fullname)
+					if err != nil {
+						t.Fatalf("failed to stat directory: %v", err)
+						return
+					}
+
+					if info.Mode() != entry.Perm {
+						t.Fatalf("expecting the same perms: expected(%v) != received(%v)", entry.Perm, info.Mode())
+						return
+					}
+				})
+			}
+		})
+	})
+}

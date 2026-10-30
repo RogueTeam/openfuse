@@ -16,7 +16,7 @@ type FullFS interface {
 // Permits the handler to creates directories based on a path
 type MkdirFS interface {
 	fs.FS
-	Mkdir(name string) (err error)
+	Mkdir(name string, mask, mode uint32) (err error)
 }
 
 // Permits more complex opening of file by receiving the flags from kernel

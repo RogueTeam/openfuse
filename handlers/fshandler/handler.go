@@ -55,10 +55,8 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 		return out, fuse.ErrorNotFound
 	}
 
-	statFS, ok := h.fs.(fs.StatFS)
-
 	var info fs.FileInfo
-	if ok {
+	if statFS, ok := h.fs.(fs.StatFS); ok {
 		var err error
 		info, err = statFS.Stat(inode.Path)
 		if err != nil {
@@ -358,6 +356,46 @@ useCache:
 		}
 		goto useCache
 	}
+}
+
+func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseMkdirIn, name string) (hErr *fuse.HError) {
+	mkdirFs, ok := h.fs.(MkdirFS)
+	if !ok {
+		return fuse.ErrorNotSupported
+	}
+
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	var info fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		info, err = statFS.Stat(inode.Path)
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(inode.Path)
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+
+		info, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+	}
+
+	if !info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	fullname := path.Join(inode.Path, name)
+
+	return HErrorFromGoError(mkdirFs.Mkdir(fullname, in.Mask, in.Mode))
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations

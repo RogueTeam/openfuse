@@ -78,6 +78,8 @@ type Handler interface {
 	Release(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReleaseIn) (hErr *HError)
 	// Reads from a file handle
 	Read(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out []byte, hErr *HError)
+	// Creates a new directory
+	Mkdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMkdirIn, name string) (hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyErrno(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -241,7 +243,34 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 	case /* TODO: Implement me */ FusebufTypeREADLINK:
 	case /* TODO: Implement me */ FusebufTypeSYMLINK:
 	case /* TODO: Implement me */ FusebufTypeMKNOD:
-	case /* TODO: Implement me */ FusebufTypeMKDIR:
+	case FusebufTypeMKDIR:
+		inMkdir, hErr := ValueFromBytes[FuseMkdirIn](inBuffer[:min(len(inBuffer), int(unsafe.Sizeof(FuseMkdirIn{})))])
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+		inBuffer = inBuffer[unsafe.Sizeof(FuseMkdirIn{}):]
+		if len(inBuffer) < 2 {
+			logger.ErrorContext(ctx, "no path provided")
+			return f.ReplyErrno(header, ErrorInvalidValue.Errno)
+		}
+
+		name := unix.ByteSliceToString(inBuffer)
+
+		hErr = f.Handler.Mkdir(ctx, logger, header, inMkdir, name)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeUNLINK:
 	case /* TODO: Implement me */ FusebufTypeRMDIR:
 	case /* TODO: Implement me */ FusebufTypeRENAME:

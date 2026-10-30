@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/handlers/tables"
+	"golang.org/x/sys/unix"
 )
 
 type Node struct {
@@ -54,9 +57,6 @@ func (n *Node) find(name []string) (node *Node, err error) {
 		curr = next
 	}
 
-	fmt.Println("----------------------------")
-	fmt.Println(name, curr)
-	fmt.Println("----------------------------")
 	return curr, nil
 }
 
@@ -90,10 +90,40 @@ func (f *FS) Stat(name string) (fs.FileInfo, error) {
 	return &node.Info, nil
 }
 
+func (f *FS) Mkdir(name string, mask, mode uint32) (err error) {
+	fmt.Printf("%s - %o %o", name, mask, mode)
+	if mode&unix.S_IFDIR != unix.S_IFDIR {
+		return fuse.ErrorInvalidValue
+	}
+
+	dir, childDir := path.Split(name)
+	inode, err := f.Root.Find(dir)
+	if err != nil {
+		return err
+	}
+
+	if !inode.Info.Mode().IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	inode.Children[childDir] = &Node{
+		Name: childDir,
+		Info: fileinfo{
+			name:  childDir,
+			size:  0,
+			mode:  fs.FileMode(mode&0o777) | tables.FileModeFromModeType(mode),
+			mtime: time.Now(),
+		},
+		Children: make(map[string]*Node),
+	}
+
+	return nil
+}
+
 var (
-	_ fs.FS     = (*FS)(nil)
-	_ fs.StatFS = (*FS)(nil)
-	// _ fshandler.MkdirFS     = (*FS)(nil)
+	_ fs.FS             = (*FS)(nil)
+	_ fs.StatFS         = (*FS)(nil)
+	_ fshandler.MkdirFS = (*FS)(nil)
 	// _ fshandler.OpenFlagsFS = (*FS)(nil)
 	// _ fshandler.DestroyFS   = (*FS)(nil)
 )

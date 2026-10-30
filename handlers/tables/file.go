@@ -30,6 +30,27 @@ func ModeTypeFromFileMode(mode fs.FileMode) (o uint32) {
 	}
 }
 
+func FileModeFromModeType(mode uint32) (o fs.FileMode) {
+	switch {
+	case mode&unix.S_IFREG == unix.S_IFREG:
+		return 0
+	case mode&unix.S_IFDIR == unix.S_IFDIR:
+		return fs.ModeDir
+	case mode&unix.S_IFLNK == unix.S_IFLNK:
+		return fs.ModeSymlink
+	case mode&unix.S_IFIFO == unix.S_IFIFO:
+		return fs.ModeNamedPipe
+	case mode&unix.S_IFSOCK == unix.S_IFSOCK:
+		return fs.ModeSocket
+	case mode&unix.S_IFCHR == unix.S_IFCHR:
+		return fs.ModeDevice | fs.ModeCharDevice
+	case mode&unix.S_IFBLK == unix.S_IFBLK:
+		return fs.ModeDevice
+	default:
+		return fs.ModeIrregular
+	}
+}
+
 func FuseAttrFromFileInfo(header *fuse.FuseInHeader, info fs.FileInfo) (out fuse.FuseAttr) {
 	mode := uint32(info.Mode().Perm()) | ModeTypeFromFileMode(info.Mode())
 	return fuse.FuseAttr{
