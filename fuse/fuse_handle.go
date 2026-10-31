@@ -82,7 +82,7 @@ type Handler interface {
 	Mkdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMkdirIn, name string) (hErr *HError)
 	// Unlink is used to remove a file from the filesystem
 	// It is different from hard removals since open handles can still exists
-	Unlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (hErr *HError)
+	Unlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyErrno(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -275,15 +275,9 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	case FusebufTypeUNLINK:
-		if len(inBuffer) != 0 {
-			logger.
-				With("expecting", 0).
-				With("received", len(inBuffer)).
-				ErrorContext(ctx, "expecting no payload")
-			return f.ReplyErrno(header, unix.EINVAL)
-		}
+		name := unix.ByteSliceToString(inBuffer)
 
-		hErr := f.Handler.Unlink(ctx, logger, header)
+		hErr := f.Handler.Unlink(ctx, logger, header, name)
 		if hErr != nil {
 			logger.
 				With("error", hErr.Error()).

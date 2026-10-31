@@ -315,3 +315,78 @@ func Test_Mkdir(t *testing.T) {
 		})
 	})
 }
+
+func Test_Unlink(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go i.Serve(t.Context(), logger)
+
+		t.Run("Remove", func(t *testing.T) {
+			for _, entry := range slices.Backward(paths) {
+				t.Run(entry.Path, func(t *testing.T) {
+					fullpath := path.Join(i.Mountpoint, entry.Path)
+
+					err = os.Remove(fullpath)
+					if err != nil {
+						t.Fatalf("failed to remove file: %v", err)
+						return
+					}
+				})
+			}
+		})
+		t.Run("Walk", func(t *testing.T) {
+			var visited int
+			err := fs.WalkDir(os.DirFS(i.Mountpoint), ".", func(path string, d fs.DirEntry, err error) error {
+				if path == "." {
+					return nil
+				}
+
+				visited++
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("failed to walk filesystem: %v", err)
+				return
+			}
+
+			t.Logf("Visited: %v", visited)
+
+			if visited > 0 {
+				t.Fatalf("expecting no files: visited %d", visited)
+				return
+			}
+		})
+	})
+}

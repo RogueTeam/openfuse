@@ -398,8 +398,18 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 	return HErrorFromGoError(mkdirFs.Mkdir(fullname, in.Mask, in.Mode))
 }
 
-func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader) (hErr *fuse.HError) {
-	return fuse.ErrorNotSupported
+func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name string) (hErr *fuse.HError) {
+	unlinkFS, ok := h.fs.(UnlinkFS)
+	if !ok {
+		return fuse.ErrorNotSupported
+	}
+
+	inode := h.nodes.GetByIno(hdr.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	return HErrorFromGoError(unlinkFS.Unlink(path.Join(inode.Path, name)))
 }
 
 // Provided filesystem may implement any of the following subtypes in order to support more operations
