@@ -92,7 +92,6 @@ func Test_Readdir(t *testing.T) {
 			Contents string
 		}
 		paths := []Entry{
-			{Path: ".", Mode: 0o700},
 			{Path: "root", Mode: 0o700},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
@@ -137,6 +136,9 @@ func Test_Readdir(t *testing.T) {
 			err = fs.WalkDir(
 				os.DirFS(i.Mountpoint), ".",
 				func(path string, d fs.DirEntry, err error) error {
+					if path == "." {
+						return nil
+					}
 					t.Logf("File/Dir: %s %v", path, d)
 					visited = append(visited, path)
 					return nil
@@ -168,8 +170,7 @@ func Test_OpenRead(t *testing.T) {
 			Contents string
 		}
 		paths := []Entry{
-			{Path: ".", Mode: 0o700},
-			{Path: "root", Mode: 0o700},
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
@@ -285,6 +286,31 @@ func Test_Mkdir(t *testing.T) {
 						return
 					}
 				})
+			}
+		})
+		t.Run("Walk", func(t *testing.T) {
+			var visited []string
+			err := fs.WalkDir(os.DirFS(i.Mountpoint), ".", func(path string, d fs.DirEntry, err error) error {
+				if path == "." {
+					return nil
+				}
+
+				visited = append(visited, path)
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("failed to walk filesystem: %v", err)
+				return
+			}
+
+			t.Logf("Visited: %v", visited)
+
+			equal := slices.EqualFunc(paths, visited, func(a Entry, b string) bool {
+				return a.Path == b
+			})
+			if !equal {
+				t.Fatalf("visited(%v) != expected(%v)", visited, paths)
+				return
 			}
 		})
 	})

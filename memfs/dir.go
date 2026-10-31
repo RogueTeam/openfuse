@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
 )
 
 type Directory struct {
@@ -61,7 +62,4 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 	return dents, nil
 }
 
-var (
-	_ fs.File        = (*Directory)(nil)
-	_ fs.ReadDirFile = (*Directory)(nil)
-)
+var _ fshandler.FullDir = (*Directory)(nil)

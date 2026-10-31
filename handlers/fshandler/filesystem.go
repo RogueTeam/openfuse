@@ -11,6 +11,7 @@ type FullFS interface {
 	MkdirFS
 	OpenFlagsFS
 	DestroyFS
+	UnlinkFS
 }
 
 // Permits the handler to creates directories based on a path
@@ -30,4 +31,9 @@ type OpenFlagsFS interface {
 type DestroyFS interface {
 	fs.FS
 	Destroy() (err error)
+}
+
+type UnlinkFS interface {
+	fs.FS
+	Unlink(name string) (err error)
 }

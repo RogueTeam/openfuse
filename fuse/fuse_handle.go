@@ -80,6 +80,9 @@ type Handler interface {
 	Read(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out []byte, hErr *HError)
 	// Creates a new directory
 	Mkdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMkdirIn, name string) (hErr *HError)
+	// Unlink is used to remove a file from the filesystem
+	// It is different from hard removals since open handles can still exists
+	Unlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (hErr *HError)
 }
 
 func (f *Fuse[T]) ReplyErrno(hdr *FuseInHeader, errno unix.Errno) (err error) {
@@ -271,7 +274,29 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeUNLINK:
+	case FusebufTypeUNLINK:
+		if len(inBuffer) != 0 {
+			logger.
+				With("expecting", 0).
+				With("received", len(inBuffer)).
+				ErrorContext(ctx, "expecting no payload")
+			return f.ReplyErrno(header, unix.EINVAL)
+		}
+
+		hErr := f.Handler.Unlink(ctx, logger, header)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeRMDIR:
 	case /* TODO: Implement me */ FusebufTypeRENAME:
 	case /* TODO: Implement me */ FusebufTypeLINK:

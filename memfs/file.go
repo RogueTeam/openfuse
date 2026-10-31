@@ -7,14 +7,16 @@ import (
 	"io"
 	"io/fs"
 
+	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
 )
 
 type File struct {
-	Closed    bool
-	Reference *Node
-	Cursor    int
-	Contents  []byte
+	AllowRead, AllowWrite bool
+	Closed                bool
+	Reference             *Node
+	Cursor                int
+	Contents              []byte
 }
 
 func (f *File) Stat() (info fs.FileInfo, err error) {
@@ -28,6 +30,9 @@ func (f *File) Read(b []byte) (n int, err error) {
 	if f.Closed {
 		return 0, fs.ErrClosed
 	}
+	if !f.AllowRead {
+		return 0, fuse.ErrorBadFileDescriptor.GoError
+	}
 
 	n = copy(b[f.Cursor:], f.Contents)
 	f.Cursor += n
@@ -40,6 +45,9 @@ func (f *File) Read(b []byte) (n int, err error) {
 func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 	if f.Closed {
 		return 0, fs.ErrClosed
+	}
+	if !f.AllowRead {
+		return 0, fuse.ErrorBadFileDescriptor.GoError
 	}
 
 	if off >= int64(len(f.Contents)) {
@@ -61,7 +69,4 @@ func (f *File) Close() (err error) {
 	return nil
 }
 
-var (
-	_ fs.File              = (*File)(nil)
-	_ fshandler.ReadAtFile = (*File)(nil)
-)
+var _ fshandler.FullFile = (*File)(nil)

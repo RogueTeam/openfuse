@@ -398,6 +398,10 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 	return HErrorFromGoError(mkdirFs.Mkdir(fullname, in.Mask, in.Mode))
 }
 
+func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader) (hErr *fuse.HError) {
+	return fuse.ErrorNotSupported
+}
+
 // Provided filesystem may implement any of the following subtypes in order to support more operations
 // When fs.StatFS is implemented any stat operation may be performed directly with the available path without first calling Open
 // When fshandler.OpenFlagsFS is implemented, granular use of flags can be used when opening a file
