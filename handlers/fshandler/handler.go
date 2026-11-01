@@ -55,30 +55,50 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 		return out, fuse.ErrorNotFound
 	}
 
-	var info fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
+	switch statFS := h.fs.(type) {
+	case BetterStatFS:
 		var err error
-		info, err = statFS.Stat(inode.Path)
+		attrout, err := statFS.BetterStat(inode.Path)
 		if err != nil {
 			return out, HErrorFromGoError(err)
 		}
-	} else {
+
+		return attrout.ToFuse(inode.NodeId), nil
+	case fs.StatFS:
+		var err error
+		info, err := statFS.Stat(inode.Path)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		return fuse.FuseAttrOut{
+			Attr: tables.FuseAttrFromFileInfo(header.NodeId, info),
+		}, nil
+	default:
 		file, err := h.fs.Open(inode.Path)
 		if err != nil {
 			return out, HErrorFromGoError(err)
 		}
 		defer file.Close()
 
-		info, err = file.Stat()
+		betterFile, ok := file.(BetterStatFile)
+		if ok {
+			attrout, err := betterFile.BetterStat()
+			if err != nil {
+				return out, HErrorFromGoError(err)
+			}
+
+			return attrout.ToFuse(inode.NodeId), nil
+		}
+
+		info, err := file.Stat()
 		if err != nil {
 			return out, HErrorFromGoError(err)
 		}
+		return fuse.FuseAttrOut{
+			Attr: tables.FuseAttrFromFileInfo(header.NodeId, info),
+		}, nil
 	}
-
-	out = fuse.FuseAttrOut{
-		Attr: tables.FuseAttrFromFileInfo(header, info),
-	}
-	return out, nil
 }
 
 // Is not our responsability to destroying anything
@@ -213,16 +233,28 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 	}
 	defer file.Close()
 
+	targetInode := h.nodes.New(path.Join(inode.Path, name), true, false, inode)
+
+	if betterFile, ok := file.(BetterStatFile); ok {
+		attrout, err := betterFile.BetterStat()
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		return fuse.FuseEntryOut{
+			NodeId: targetInode.NodeId,
+			Attr:   attrout.ToFuse(targetInode.NodeId).Attr,
+		}, nil
+	}
+
 	info, err := file.Stat()
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
 
-	targetInode := h.nodes.New(path.Join(inode.Path, name), true, false, inode)
-
 	out = fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
-		Attr:   tables.FuseAttrFromFileInfo(header, info),
+		Attr:   tables.FuseAttrFromFileInfo(targetInode.NodeId, info),
 	}
 
 	return out, nil
@@ -440,6 +472,42 @@ func (h *Handler) Write(ctx context.Context, logger *slog.Logger, header *fuse.F
 	default:
 		return out, fuse.ErrorNotSupported
 	}
+}
+
+func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseSetattrIn) (out fuse.FuseAttrOut, hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+
+	var setattr Setattr
+	if fh == nil {
+		setattr.FromFuse(nil, in)
+		// Attempt to use the file system interface
+		setattrFS, ok := h.fs.(SetattrFS)
+		if !ok {
+			return out, fuse.ErrorNotSupported
+		}
+
+		attr, err := setattrFS.Setattr(inode.Path, &setattr)
+		return attr.ToFuse(header.NodeId), HErrorFromGoError(err)
+	}
+
+	setattr.FromFuse(fh.Handle, in)
+	setattrFile, ok := fh.Handle.(SetattrFile)
+	if ok {
+		attr, err := setattrFile.Setattr(&setattr)
+		return attr.ToFuse(header.NodeId), HErrorFromGoError(err)
+	}
+
+	setattrFS, ok := h.fs.(SetattrFS)
+	if !ok {
+		return out, fuse.ErrorNotSupported
+	}
+	attr, err := setattrFS.Setattr(inode.Path, &setattr)
+	return attr.ToFuse(header.NodeId), HErrorFromGoError(err)
 }
 
 // TODO: Update with all implementations

@@ -9,6 +9,7 @@ import (
 
 	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/handlers/tables"
 )
 
 type File struct {
@@ -66,6 +67,7 @@ func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 		return 0, fuse.ErrorBadFileDescriptor.GoError
 	}
 
+	// TODO: Implement me!
 	return 0, fuse.ErrorNotSupported
 }
 
@@ -78,6 +80,34 @@ func (f *File) Close() (err error) {
 		f.Reference.Contents = f.Contents
 	}
 	return nil
+}
+
+func (f *File) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
+	// TODO: Implement me!
+	return out, fuse.ErrorNotSupported
+}
+
+func (f *File) BetterStat() (out fshandler.AttrOut, err error) {
+	out = fshandler.AttrOut{
+		Attr: fshandler.Attr{
+			Size:      uint64(f.Reference.Info.size),
+			Blocks:    1,
+			Atime:     0,
+			Mtime:     uint64(f.Reference.Info.ModTime().Unix()),
+			Ctime:     0,
+			Atimesec:  0,
+			Mtimesec:  0,
+			Ctimesec:  0,
+			Mode:      uint32(f.Reference.Info.mode&0o777) | tables.ModeTypeFromFileMode(f.Reference.Info.mode),
+			Nlink:     2,
+			Uid:       0,
+			Gid:       0,
+			Rdev:      0,
+			Blocksize: uint32(f.Reference.Info.size),
+			Padding:   0,
+		},
+	}
+	return out, nil
 }
 
 var _ fshandler.FullFile = (*File)(nil)

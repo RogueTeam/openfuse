@@ -4,6 +4,7 @@ package memfs
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -176,6 +177,40 @@ func (f *FS) Unlink(name string) (err error) {
 	delete(parent.Children, filename)
 
 	return nil
+}
+
+func (f *FS) Setattr(name string, attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
+	fmt.Println(attr)
+	// TODO: Implement me
+	return out, fuse.ErrorNotSupported
+}
+
+func (f *FS) BetterStat(name string) (out fshandler.AttrOut, err error) {
+	node, err := f.Root.Find(name)
+	if err != nil {
+		return out, err
+	}
+
+	out = fshandler.AttrOut{
+		Attr: fshandler.Attr{
+			Size:      uint64(node.Info.size),
+			Blocks:    1,
+			Atime:     0,
+			Mtime:     uint64(node.Info.ModTime().Unix()),
+			Ctime:     0,
+			Atimesec:  0,
+			Mtimesec:  0,
+			Ctimesec:  0,
+			Mode:      uint32(node.Info.mode&0o777) | tables.ModeTypeFromFileMode(node.Info.mode),
+			Nlink:     2,
+			Uid:       0,
+			Gid:       0,
+			Rdev:      0,
+			Blocksize: uint32(node.Info.size),
+			Padding:   0,
+		},
+	}
+	return out, nil
 }
 
 var _ fshandler.FullFS = (*FS)(nil)

@@ -4,6 +4,17 @@ package fuse
 
 import "unsafe"
 
+type SetattrValid uint32
+
+const (
+	FUSE_FATTR_MODE  SetattrValid = (1 << 0)
+	FUSE_FATTR_UID   SetattrValid = (1 << 1)
+	FUSE_FATTR_GID   SetattrValid = (1 << 2)
+	FUSE_FATTR_SIZE  SetattrValid = (1 << 3)
+	FUSE_FATTR_ATIME SetattrValid = (1 << 4)
+	FUSE_FATTR_MTIME SetattrValid = (1 << 5)
+)
+
 type FusebufType uint32
 
 const (
@@ -112,7 +123,7 @@ type FuseGetattrIn struct {
 }
 
 type FuseSetattrIn struct {
-	Valid      uint32
+	Valid      SetattrValid
 	Padding    uint32
 	FileHandle uint64
 	Size       uint64

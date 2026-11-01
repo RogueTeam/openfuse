@@ -51,10 +51,10 @@ func FileModeFromModeType(mode uint32) (o fs.FileMode) {
 	}
 }
 
-func FuseAttrFromFileInfo(header *fuse.FuseInHeader, info fs.FileInfo) (out fuse.FuseAttr) {
+func FuseAttrFromFileInfo(ino uint64, info fs.FileInfo) (out fuse.FuseAttr) {
 	mode := uint32(info.Mode().Perm()) | ModeTypeFromFileMode(info.Mode())
 	return fuse.FuseAttr{
-		Ino:   header.NodeId,
+		Ino:   ino,
 		Size:  uint64(info.Size()),
 		Mode:  mode,
 		Mtime: uint64(info.ModTime().UnixMilli()),

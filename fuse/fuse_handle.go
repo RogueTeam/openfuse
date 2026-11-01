@@ -44,6 +44,8 @@ type Handler interface {
 	Unlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (hErr *HError)
 	// Permits writing to files
 	Write(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseWriteIn, buffer []byte) (out FuseWriteOut, hErr *HError)
+	// Supports setattr
+	Setattr(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseSetattrIn) (out FuseAttrOut, hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -121,7 +123,27 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeSETATTR:
+	case FusebufTypeSETATTR:
+		inSetattr, hErr := ValueFromBytes[FuseSetattrIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		out, hErr := f.Handler.Setattr(ctx, logger, header, inSetattr)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeREADLINK:
 	case /* TODO: Implement me */ FusebufTypeSYMLINK:
 	case /* TODO: Implement me */ FusebufTypeMKNOD:
