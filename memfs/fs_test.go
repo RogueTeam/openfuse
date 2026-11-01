@@ -424,7 +424,11 @@ func Test_OpenWriteRead(t *testing.T) {
 			{Path: "file3", Mode: 0o700, Contents: "file3"},
 			{Path: "file4", Mode: 0o700, Contents: "file4"},
 			{Path: "empty", Mode: 0o700, Contents: "file4"},
-			{Path: "big", Mode: 0o700, Contents: strings.Repeat("A", 4*1024*1024)},
+			{Path: "1kb", Mode: 0o700, Contents: strings.Repeat("A", 1024)},
+			{Path: "32kb", Mode: 0o700, Contents: strings.Repeat("A", 32*1024)},
+			{Path: "1mb", Mode: 0o700, Contents: strings.Repeat("A", 1024*1024)},
+			{Path: "4mb", Mode: 0o700, Contents: strings.Repeat("A", 4*1024*1024)},
+			{Path: "100mb", Mode: 0o700, Contents: strings.Repeat("A", 100*1024*1024)},
 		}
 
 		filesystem := memfs.New()

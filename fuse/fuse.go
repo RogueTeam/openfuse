@@ -139,6 +139,13 @@ func Mount[T Handler](dir string, o Options, h T) (i *Fuse[T], err error) {
 		return nil, fmt.Errorf("no directory provided")
 	}
 
+	err = o.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate options: %w", err)
+	}
+
+	o.Defaults()
+
 	dir, err = filepath.Abs(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for directory: %w", err)
@@ -166,7 +173,7 @@ func Mount[T Handler](dir string, o Options, h T) (i *Fuse[T], err error) {
 
 	i = &Fuse[T]{
 		Handler:    h,
-		MaxWrite:   o.MaxRead,
+		MaxWrite:   o.MaxWrite,
 		Mountpoint: dir,
 		Fd:         fd,
 	}
