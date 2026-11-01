@@ -31,7 +31,10 @@ func Test_Getattr(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		info, err := os.Stat(i.Mountpoint)
 		if err != nil {
@@ -58,7 +61,10 @@ func Test_Readdir(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		t.Run("Root", func(t *testing.T) {
 			entries, err := os.ReadDir(i.Mountpoint)
@@ -113,7 +119,10 @@ func Test_OpenRead(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		for _, entry := range samplefs.Paths {
 			if !entry.Mode.IsRegular() {

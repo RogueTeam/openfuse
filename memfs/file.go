@@ -58,6 +58,17 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 	return n, nil
 }
 
+func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
+	if f.Closed {
+		return 0, fs.ErrClosed
+	}
+	if !f.AllowWrite {
+		return 0, fuse.ErrorBadFileDescriptor.GoError
+	}
+
+	return 0, fuse.ErrorNotSupported
+}
+
 func (f *File) Close() (err error) {
 	if f.Closed {
 		return fs.ErrClosed

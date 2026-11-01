@@ -140,6 +140,10 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReadIn) (out fuse.FuseDirEntries, hErr *fuse.HError) {
 	fh := h.fileHandles.GetByFd(in.FileHandle)
 
+	if fh == nil {
+		return out, fuse.ErrorNotFound
+	}
+
 	rdFile, ok := fh.Handle.(fs.ReadDirFile)
 	if !ok {
 		return out, &fuse.HError{
@@ -322,6 +326,10 @@ func (h *Handler) Release(ctx context.Context, logger *slog.Logger, header *fuse
 func (h *Handler) Read(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReadIn) (out []byte, hErr *fuse.HError) {
 	fh := h.fileHandles.GetByFd(in.FileHandle)
 
+	if fh == nil {
+		return out, fuse.ErrorNotFound
+	}
+
 useCache:
 	// Read from buffer
 	if fh.CacheBuffer != nil {
@@ -412,6 +420,29 @@ func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 	return HErrorFromGoError(unlinkFS.Unlink(path.Join(inode.Path, name)))
 }
 
+func (h *Handler) Write(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseWriteIn, buffer []byte) (out fuse.FuseWriteOut, hErr *fuse.HError) {
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+
+	if fh == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	switch file := fh.Handle.(type) {
+	case WriteAtFile:
+		n, err := file.WriteAt(buffer, int64(in.Offset))
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		return fuse.FuseWriteOut{
+			Size: uint32(n),
+		}, nil
+	default:
+		return out, fuse.ErrorNotSupported
+	}
+}
+
+// TODO: Update with all implementations
 // Provided filesystem may implement any of the following subtypes in order to support more operations
 // When fs.StatFS is implemented any stat operation may be performed directly with the available path without first calling Open
 // When fshandler.OpenFlagsFS is implemented, granular use of flags can be used when opening a file

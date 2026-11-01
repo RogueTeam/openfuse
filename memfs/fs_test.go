@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/RogueTeam/openfuse/fuse"
@@ -72,7 +73,10 @@ func Test_Getattr(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		info, err := os.Stat(i.Mountpoint)
 		if err != nil {
@@ -119,7 +123,10 @@ func Test_Readdir(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		t.Run("Root", func(t *testing.T) {
 			entries, err := os.ReadDir(i.Mountpoint)
@@ -197,7 +204,10 @@ func Test_OpenRead(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		for _, entry := range paths {
 			if !entry.Mode.IsRegular() {
@@ -221,6 +231,10 @@ func Test_OpenRead(t *testing.T) {
 
 				if info.Size() != int64(len(contents)) {
 					t.Fatalf("size doesn't match: expected(%d) != received(%d)", info.Size(), len(contents))
+				}
+
+				if string(contents) != entry.Contents {
+					t.Fatalf("contents doesn't match")
 				}
 			})
 		}
@@ -246,7 +260,10 @@ func Test_Mkdir(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		type Entry struct {
 			Path string
@@ -351,7 +368,10 @@ func Test_Unlink(t *testing.T) {
 		})
 
 		logger := testsuite.Logger(t, slog.LevelDebug)
-		go i.Serve(t.Context(), logger)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
 
 		t.Run("Remove", func(t *testing.T) {
 			for _, entry := range slices.Backward(paths) {
@@ -388,5 +408,109 @@ func Test_Unlink(t *testing.T) {
 				return
 			}
 		})
+	})
+}
+
+func Test_OpenWriteRead(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "file1", Mode: 0o700, Contents: "file1"},
+			{Path: "file2", Mode: 0o700, Contents: "file2"},
+			{Path: "file3", Mode: 0o700, Contents: "file3"},
+			{Path: "file4", Mode: 0o700, Contents: "file4"},
+			{Path: "big", Mode: 0o700, Contents: strings.Repeat("A", 4*1024*1024)},
+			{Path: "empty", Mode: 0o700, Contents: "file4"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, "")
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		t.Run("Write", func(t *testing.T) {
+			for _, entry := range paths {
+				if !entry.Mode.IsRegular() {
+					t.Logf("Skipping: %s %v", entry.Path, entry.Mode)
+					continue
+				}
+
+				t.Run(entry.Path, func(t *testing.T) {
+					fullpath := path.Join(i.Mountpoint, entry.Path)
+
+					file, err := os.OpenFile(fullpath, os.O_TRUNC|os.O_WRONLY, 0)
+					if err != nil {
+						t.Fatalf("failed to open file: %v", err)
+						return
+					}
+					t.Cleanup(func() { file.Close() })
+
+					_, err = file.Write([]byte(entry.Contents))
+					if err != nil {
+						t.Fatalf("failed to write contents: %v", err)
+						return
+					}
+				})
+			}
+		})
+		t.Run("Verify", func(t *testing.T) {
+			for _, entry := range paths {
+				if !entry.Mode.IsRegular() {
+					t.Logf("Skipping: %s %v", entry.Path, entry.Mode)
+					continue
+				}
+
+				t.Run(entry.Path, func(t *testing.T) {
+					fullpath := path.Join(i.Mountpoint, entry.Path)
+					info, err := os.Stat(fullpath)
+					if err != nil {
+						t.Fatalf("failed to get file stat: %v", err)
+						return
+					}
+
+					contents, err := os.ReadFile(fullpath)
+					if err != nil {
+						t.Fatalf("failed to read file: %v", err)
+						return
+					}
+
+					if info.Size() != int64(len(contents)) {
+						t.Fatalf("size doesn't match: expected(%d) != received(%d)", info.Size(), len(contents))
+					}
+
+					if string(contents) != entry.Contents {
+						t.Fatalf("contents doesn't match")
+					}
+				})
+			}
+		})
+
 	})
 }
