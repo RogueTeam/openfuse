@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"io"
 	"io/fs"
+	"time"
 
 	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
@@ -90,8 +91,15 @@ func (f *File) Close() (err error) {
 	}
 	f.Closed = true
 
+	if !f.AllowWrite {
+		return nil
+	}
+
 	if !bytes.Equal(f.Contents, f.Reference.Contents) {
 		f.Reference.Contents = f.Contents
+
+		f.Info.size = int64(len(f.Contents))
+		f.Info.mtime = time.Now()
 	}
 
 	if f.Info != f.Reference.Info {

@@ -30,10 +30,15 @@ func (n *Node) DirEntry() (e fs.DirEntry) {
 	}
 }
 
-func (n *Node) openFile(flags uint32) (file fs.File) {
+func (n *Node) openFile(flags uint32) (file *File) {
+	defer func() {
+		if file == nil {
+			return
+		}
+	}()
 	var contents []byte = n.Contents
 	var cursor int
-	if flags&unix.O_TRUNC != unix.O_TRUNC {
+	if flags&unix.O_TRUNC == unix.O_TRUNC {
 		contents = nil
 	}
 	if flags&unix.O_APPEND == unix.O_APPEND {

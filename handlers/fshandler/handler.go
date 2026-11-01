@@ -458,7 +458,6 @@ func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 
 func (h *Handler) Write(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseWriteIn, buffer []byte) (out fuse.FuseWriteOut, hErr *fuse.HError) {
 	fh := h.fileHandles.GetByFd(in.FileHandle)
-
 	if fh == nil {
 		return out, fuse.ErrorNotFound
 	}

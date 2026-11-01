@@ -423,8 +423,8 @@ func Test_OpenWriteRead(t *testing.T) {
 			{Path: "file2", Mode: 0o700, Contents: "file2"},
 			{Path: "file3", Mode: 0o700, Contents: "file3"},
 			{Path: "file4", Mode: 0o700, Contents: "file4"},
-			{Path: "big", Mode: 0o700, Contents: strings.Repeat("A", 4*1024*1024)},
 			{Path: "empty", Mode: 0o700, Contents: "file4"},
+			{Path: "big", Mode: 0o700, Contents: strings.Repeat("A", 4*1024*1024)},
 		}
 
 		filesystem := memfs.New()
@@ -507,7 +507,7 @@ func Test_OpenWriteRead(t *testing.T) {
 					}
 
 					if string(contents) != entry.Contents {
-						t.Fatalf("contents doesn't match")
+						t.Fatalf("contents doesn't match: expect(%s) != received(%s)", entry.Contents, contents)
 					}
 				})
 			}

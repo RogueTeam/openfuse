@@ -3,7 +3,6 @@
 package memfs
 
 import (
-	"fmt"
 	"io"
 	"io/fs"
 	"slices"
@@ -66,8 +65,6 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 }
 
 func (d *Directory) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
-	fmt.Println("------------------------------ Dir | Setattr ------------------------------")
-	fmt.Println(attr)
 	// TODO: Implement me!
 	return out, fuse.ErrorNotSupported
 }
