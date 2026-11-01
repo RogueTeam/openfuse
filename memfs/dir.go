@@ -3,6 +3,7 @@
 package memfs
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"slices"
@@ -16,6 +17,7 @@ import (
 type Directory struct {
 	Closed    bool
 	Cursor    int
+	Info      fileinfo
 	Reference *Node
 }
 
@@ -64,6 +66,8 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 }
 
 func (d *Directory) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
+	fmt.Println("------------------------------ Dir | Setattr ------------------------------")
+	fmt.Println(attr)
 	// TODO: Implement me!
 	return out, fuse.ErrorNotSupported
 }
@@ -71,20 +75,20 @@ func (d *Directory) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err
 func (d *Directory) BetterStat() (out fshandler.AttrOut, err error) {
 	out = fshandler.AttrOut{
 		Attr: fshandler.Attr{
-			Size:      uint64(d.Reference.Info.size),
-			Blocks:    1,
+			Size:      0,
+			Blocks:    0,
 			Atime:     0,
-			Mtime:     uint64(d.Reference.Info.ModTime().Unix()),
+			Mtime:     uint64(d.Info.ModTime().Unix()),
 			Ctime:     0,
 			Atimesec:  0,
 			Mtimesec:  0,
 			Ctimesec:  0,
-			Mode:      uint32(d.Reference.Info.mode&0o777) | tables.ModeTypeFromFileMode(d.Reference.Info.mode),
+			Mode:      uint32(d.Info.mode&0o777) | tables.ModeTypeFromFileMode(d.Info.mode),
 			Nlink:     2,
 			Uid:       0,
 			Gid:       0,
 			Rdev:      0,
-			Blocksize: uint32(d.Reference.Info.size),
+			Blocksize: 0,
 			Padding:   0,
 		},
 	}

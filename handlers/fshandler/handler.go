@@ -341,7 +341,8 @@ func (h *Handler) Release(ctx context.Context, logger *slog.Logger, header *fuse
 
 	fh := h.fileHandles.GetByFd(in.FileHandle)
 	if fh == nil {
-		return fuse.ErrorNotFound
+		logger.WarnContext(ctx, "Handle not found")
+		return nil
 	}
 
 	if fh.Inode != inode {
@@ -352,7 +353,10 @@ func (h *Handler) Release(ctx context.Context, logger *slog.Logger, header *fuse
 	if err != nil {
 		logger.With("error-msg", err).WarnContext(ctx, "Failed to close directory handle")
 	}
-	return h.fileHandles.Del(fh.FileDescriptor)
+
+	h.fileHandles.Del(fh.FileDescriptor)
+
+	return nil
 }
 
 func (h *Handler) Read(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReadIn) (out []byte, hErr *fuse.HError) {
@@ -508,6 +512,28 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 	}
 	attr, err := setattrFS.Setattr(inode.Path, &setattr)
 	return attr.ToFuse(header.NodeId), HErrorFromGoError(err)
+}
+
+func (h *Handler) Flush(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseFlushIn) (hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+	if fh == nil {
+		return fuse.ErrorNotFound
+	}
+
+	if fh.Inode != inode {
+		return fuse.ErrorPermissionDenied
+	}
+
+	err := fh.Handle.Close()
+	if err != nil {
+		logger.With("error-msg", err).WarnContext(ctx, "Failed to close directory handle")
+	}
+	return h.fileHandles.Del(fh.FileDescriptor)
 }
 
 // TODO: Update with all implementations

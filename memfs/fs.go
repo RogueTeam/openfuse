@@ -4,7 +4,6 @@ package memfs
 
 import (
 	"bytes"
-	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -32,10 +31,10 @@ func (n *Node) DirEntry() (e fs.DirEntry) {
 }
 
 func (n *Node) openFile(flags uint32) (file fs.File) {
-	var contents []byte
+	var contents []byte = n.Contents
 	var cursor int
 	if flags&unix.O_TRUNC != unix.O_TRUNC {
-		contents = bytes.Clone(n.Contents)
+		contents = nil
 	}
 	if flags&unix.O_APPEND == unix.O_APPEND {
 		cursor = len(contents)
@@ -43,12 +42,12 @@ func (n *Node) openFile(flags uint32) (file fs.File) {
 	switch {
 	default:
 		return nil
-	case flags&unix.O_RDONLY == unix.O_RDONLY:
-		return &File{AllowRead: true, Reference: n, Cursor: cursor, Contents: contents}
-	case flags&unix.O_WRONLY == unix.O_WRONLY:
-		return &File{AllowWrite: true, Reference: n, Cursor: cursor, Contents: contents}
 	case flags&unix.O_RDWR == unix.O_RDWR:
-		return &File{AllowRead: true, AllowWrite: true, Reference: n, Cursor: cursor, Contents: contents}
+		return &File{AllowRead: true, AllowWrite: true, Reference: n, Info: n.Info, Cursor: cursor, Contents: bytes.Clone(contents)}
+	case flags&unix.O_WRONLY == unix.O_WRONLY:
+		return &File{AllowWrite: true, Reference: n, Info: n.Info, Cursor: cursor, Contents: bytes.Clone(contents)}
+	case flags&unix.O_RDONLY == unix.O_RDONLY:
+		return &File{AllowRead: true, Reference: n, Info: n.Info, Cursor: cursor, Contents: contents}
 	}
 }
 
@@ -57,7 +56,7 @@ func (n *Node) Open(flags uint32) (file fs.File) {
 	case 0:
 		return n.openFile(flags)
 	case fs.ModeDir:
-		return &Directory{Reference: n}
+		return &Directory{Reference: n, Info: n.Info}
 	default:
 		return nil
 	}
@@ -180,9 +179,29 @@ func (f *FS) Unlink(name string) (err error) {
 }
 
 func (f *FS) Setattr(name string, attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
-	fmt.Println(attr)
-	// TODO: Implement me
-	return out, fuse.ErrorNotSupported
+	node, err := f.Root.Find(name)
+	if err != nil {
+		return fshandler.AttrOut{}, err
+	}
+
+	file := node.Open(unix.O_RDWR)
+
+	setattrFile, ok := file.(fshandler.SetattrFile)
+	if !ok {
+		return out, fuse.ErrorNotSupported
+	}
+
+	out, err = setattrFile.Setattr(attr)
+	if err != nil {
+		return fshandler.AttrOut{}, err
+	}
+
+	err = file.Close()
+	if err != nil {
+		return fshandler.AttrOut{}, err
+	}
+
+	return out, nil
 }
 
 func (f *FS) BetterStat(name string) (out fshandler.AttrOut, err error) {

@@ -7,12 +7,12 @@ import "unsafe"
 type SetattrValid uint32
 
 const (
-	FUSE_FATTR_MODE  SetattrValid = (1 << 0)
-	FUSE_FATTR_UID   SetattrValid = (1 << 1)
-	FUSE_FATTR_GID   SetattrValid = (1 << 2)
-	FUSE_FATTR_SIZE  SetattrValid = (1 << 3)
-	FUSE_FATTR_ATIME SetattrValid = (1 << 4)
-	FUSE_FATTR_MTIME SetattrValid = (1 << 5)
+	FuseFattrMode  SetattrValid = (1 << 0)
+	FuseFattrUID   SetattrValid = (1 << 1)
+	FuseFattrGID   SetattrValid = (1 << 2)
+	FuseFattrSize  SetattrValid = (1 << 3)
+	FuseFattrAtime SetattrValid = (1 << 4)
+	FuseFattrMtime SetattrValid = (1 << 5)
 )
 
 type FusebufType uint32

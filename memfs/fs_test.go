@@ -480,6 +480,7 @@ func Test_OpenWriteRead(t *testing.T) {
 				})
 			}
 		})
+
 		t.Run("Verify", func(t *testing.T) {
 			for _, entry := range paths {
 				if !entry.Mode.IsRegular() {
