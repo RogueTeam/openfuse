@@ -723,16 +723,9 @@ func (h *Handler) Rename(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 	return nil
 }
 
-// TODO: Update with all implementations
-// Provided filesystem may implement any of the following subtypes in order to support more operations
-// When fs.StatFS is implemented any stat operation may be performed directly with the available path without first calling Open
-// When fshandler.OpenFlagsFS is implemented, granular use of flags can be used when opening a file
-// When fshandler.DestroyFS is implemented, custom cleanup code can be ran when the filesystem is unmounted
-// When fshandler.MkdirFS is implemented, directory creation is permitted
-// TODO: When fshandler.MknodFS is implemented, custom node creation is permitted
-// Files could also extend their implementation with:
-// When fshandler.ReadAtFile is implemented, no caching will be required for random reads.
-// When fs.ReadDirFile is implemented, child files and directories can be obtained from a handle.
+// Provided filesystem may implement FullFS or a subset of it in order to support non Read-Only filesystems.
+// Files and directories may need to implement FullFile or FullDir accordingly in order to support all file and directory operations.
+// ExtFileInfo can be used to return more detailed attributes to the fuse device
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,
