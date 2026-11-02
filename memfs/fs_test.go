@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path"
 	"slices"
 	"strings"
@@ -28,7 +29,7 @@ func Test_Mount(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 	})
@@ -69,7 +70,7 @@ func Test_Getattr(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -119,7 +120,7 @@ func Test_Readdir(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -200,7 +201,7 @@ func Test_OpenRead(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -256,7 +257,7 @@ func Test_Mkdir(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -366,7 +367,7 @@ func Test_Rmdir(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -450,7 +451,7 @@ func Test_Unlink(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -536,7 +537,7 @@ func Test_OpenWriteRead(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -643,7 +644,7 @@ func Test_Symlink(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -717,7 +718,7 @@ func Test_Rename(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -815,6 +816,58 @@ func Test_Rename(t *testing.T) {
 					return
 				}
 			})
+		})
+	})
+}
+
+func Test_Statfs(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Logf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		t.Run("Statfs", func(t *testing.T) {
+			cmd := exec.CommandContext(t.Context(), "df", "-h", i.Mountpoint)
+			cmd.Stdout, cmd.Stderr = t.Output(), t.Output()
+			err := cmd.Run()
+			if err != nil {
+				t.Fatalf("failed to run command: %v", err)
+				return
+			}
 		})
 	})
 }

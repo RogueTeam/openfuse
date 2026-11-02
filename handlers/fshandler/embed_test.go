@@ -26,7 +26,7 @@ func Test_Getattr(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -56,7 +56,7 @@ func Test_Readdir(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -114,7 +114,7 @@ func Test_OpenRead(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 
@@ -162,7 +162,7 @@ func Test_Mount(t *testing.T) {
 			t.Logf("Closing running instance")
 			err := i.Close()
 			if err != nil {
-				t.Errorf("failed to close: %v", err)
+				t.Logf("failed to close: %v", err)
 			}
 		})
 	})

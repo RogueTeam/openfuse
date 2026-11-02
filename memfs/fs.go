@@ -22,6 +22,32 @@ type Node struct {
 	SymlinkOldname string
 }
 
+func sumStats(a, b fuse.FuseStatfsOut) (o fuse.FuseStatfsOut) {
+	return fuse.FuseStatfsOut{
+		Stat: fuse.FuseKstatfs{
+			// Blocks: a.Stat.Blocks + b.Stat.Blocks,
+			// Bfree:  a.Stat.Bfree + b.Stat.Bfree,
+			// Bavail: a.Stat.Bavail + b.Stat.Bavail,
+			Files: a.Stat.Files + b.Stat.Files,
+			// Ffree:  a.Stat.Ffree + b.Stat.Ffree,
+			// Bsize:   a.Stat.Bsize + b.Stat.Bsize,
+			// Namelen: a.Stat.Namelen + b.Stat.Namelen,
+			// Frsize:  a.Stat.Frsize + b.Stat.Frsize,
+			// Padding: a.Stat.Padding + b.Stat.Padding,
+			// Spare:   a.Stat.Spare + b.Stat.Spare,
+		},
+	}
+}
+
+func (n *Node) Statfs() (stats fuse.FuseStatfsOut) {
+	stats.Stat.Files += uint64(len(n.Children))
+
+	for _, child := range n.Children {
+		stats = sumStats(stats, child.Statfs())
+	}
+	return stats
+}
+
 func (n *Node) DirEntry() (e fs.DirEntry) {
 	return &Dirent{
 		SetName: n.Info.SetName,
@@ -354,6 +380,10 @@ func (f *FS) Rename(oldpath, newpath string) (err error) {
 	newN.Children[newName] = target
 	delete(oldN.Children, oldName)
 	return nil
+}
+
+func (f *FS) Statfs() (stats fuse.FuseStatfsOut) {
+	return f.Root.Statfs()
 }
 
 var _ fshandler.FullFS = (*FS)(nil)

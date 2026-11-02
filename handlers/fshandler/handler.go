@@ -723,6 +723,14 @@ func (h *Handler) Rename(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 	return nil
 }
 
+func (h *Handler) Statfs(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader) (out fuse.FuseStatfsOut, hErr *fuse.HError) {
+	statfsFS, ok := h.fs.(StatfsFS)
+	if !ok {
+		return out, fuse.ErrorNotSupported
+	}
+	return statfsFS.Statfs(), nil
+}
+
 // Provided filesystem may implement FullFS or a subset of it in order to support non Read-Only filesystems.
 // Files and directories may need to implement FullFile or FullDir accordingly in order to support all file and directory operations.
 // ExtFileInfo can be used to return more detailed attributes to the fuse device

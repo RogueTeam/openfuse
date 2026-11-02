@@ -167,6 +167,11 @@ type RenameFS interface {
 	Rename(oldname, newname string) (err error)
 }
 
+type StatfsFS interface {
+	fs.FS
+	Statfs() fuse.FuseStatfsOut
+}
+
 // implements a complete filesystem with all features enabled
 type FullFS interface {
 	fs.FS
@@ -179,4 +184,5 @@ type FullFS interface {
 	RmdirFS
 	SymlinkFS
 	RenameFS
+	StatfsFS
 }

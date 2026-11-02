@@ -58,6 +58,8 @@ type Handler interface {
 	Readlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (oldname []byte, hErr *HError)
 	// Renames a file to a target destination
 	Rename(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseRenameIn, oldname, newname string) (hErr *HError)
+	// Retrieves filesystem information
+	Statfs(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (out FuseStatfsOut, hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -362,7 +364,26 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeSTATFS:
+	case FusebufTypeSTATFS:
+		if len(inBuffer) != 0 {
+			logger.ErrorContext(ctx, "Expecting not value")
+			return f.ReplyErrno(header, ErrorInvalidValue.getErrno())
+		}
+
+		out, hErr := f.Handler.Statfs(ctx, logger, header)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeRELEASE:
 		inRelease, hErr := ValueFromBytes[FuseReleaseIn](inBuffer)
 		if hErr != nil {
