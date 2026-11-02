@@ -418,6 +418,46 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 	return out, nil
 }
 
+func (h *Handler) Mknod(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseMknodIn, name string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
+	mknodFs, ok := h.fs.(MknodFS)
+	if !ok {
+		return out, fuse.ErrorNotSupported
+	}
+
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	parentInfo, err := h.pathInfo(inode.Path)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	if !parentInfo.IsDir() {
+		return out, fuse.ErrorNotDirectory
+	}
+
+	fullpath := path.Clean(path.Join(inode.Path, name))
+
+	newInode := h.nodes.New(fullpath, false, false, inode)
+
+	err = mknodFs.Mknod(fullpath, in.Rdev, in.Umask, in.Mode)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	nodInfo, err := h.pathInfo(fullpath)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	out.NodeId = newInode.NodeId
+	out.Attr = FuseAttrFromFileInfo(newInode.NodeId, nodInfo)
+
+	return out, nil
+}
+
 func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name string) (hErr *fuse.HError) {
 	unlinkFS, ok := h.fs.(UnlinkFS)
 	if !ok {

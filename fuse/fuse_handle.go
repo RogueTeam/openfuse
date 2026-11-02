@@ -39,6 +39,8 @@ type Handler interface {
 	Read(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out []byte, hErr *HError)
 	// Creates a new directory
 	Mkdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMkdirIn, name string) (out FuseEntryOut, hErr *HError)
+	// Creates a new node
+	Mknod(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMknodIn, name string) (out FuseEntryOut, hErr *HError)
 	// Unlink is used to remove a file from the filesystem
 	// It is different from hard removals since open handles can still exists
 	Unlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (hErr *HError)
@@ -200,7 +202,27 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeMKNOD:
+	case FusebufTypeMKNOD:
+		inMknod, name, hErr := ValueAndStringFromBytes[FuseMknodIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		out, hErr := f.Handler.Mknod(ctx, logger, header, inMknod, name)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeMKDIR:
 		inMkdir, name, hErr := ValueAndStringFromBytes[FuseMkdirIn](inBuffer)
 		if hErr != nil {

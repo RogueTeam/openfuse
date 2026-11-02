@@ -172,6 +172,11 @@ type StatfsFS interface {
 	Statfs() fuse.FuseStatfsOut
 }
 
+type MknodFS interface {
+	fs.FS
+	Mknod(name string, rdev, umask, mode uint32) (err error)
+}
+
 // implements a complete filesystem with all features enabled
 type FullFS interface {
 	fs.FS
@@ -185,4 +190,5 @@ type FullFS interface {
 	SymlinkFS
 	RenameFS
 	StatfsFS
+	MknodFS
 }

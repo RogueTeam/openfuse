@@ -386,6 +386,45 @@ func (f *FS) Statfs() (stats fuse.FuseStatfsOut) {
 	return f.Root.Statfs()
 }
 
+func (f *FS) mknodFile(name string, _, umask, mode uint32) (err error) {
+	dir, target := path.Split(name)
+	parent, err := f.Root.Find(dir)
+	if err != nil {
+		return err
+	}
+
+	if !parent.Info.Mode().IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	_, found := parent.Children[target]
+	if found {
+		return fuse.ErrorExists
+	}
+
+	perm := (mode & 0o777) ^ umask
+	parent.Children[target] = &Node{
+		Info: FileInfo{
+			SetName: target,
+			Attributes: fshandler.Attributes{
+				Mode:  perm | (mode ^ 0o777) | unix.S_IFREG,
+				Mtime: uint64(time.Now().Unix()),
+			},
+		},
+	}
+
+	return nil
+}
+
+func (f *FS) Mknod(name string, rdev uint32, umask uint32, mode uint32) (err error) {
+	switch mode & fuse.S_IFModeType {
+	case unix.S_IFREG:
+		return f.mknodFile(name, rdev, umask, mode)
+	default:
+		return fuse.ErrorNotSupported
+	}
+}
+
 var _ fshandler.FullFS = (*FS)(nil)
 
 func New() (filesystem *FS) {

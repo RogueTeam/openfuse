@@ -871,3 +871,82 @@ func Test_Statfs(t *testing.T) {
 		})
 	})
 }
+
+func Test_Mknod(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+			{Path: "README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				t.Logf("Skipping file: %s", entry.Path)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Logf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		t.Run("Mknod", func(t *testing.T) {
+			for _, entry := range paths {
+				if entry.Mode.IsDir() {
+					continue
+				}
+				t.Run(entry.Path, func(t *testing.T) {
+					fullpath := path.Clean(path.Join(i.Mountpoint, entry.Path))
+
+					err := os.WriteFile(fullpath, []byte(entry.Contents), entry.Mode)
+					if err != nil {
+						t.Fatalf("failed to write file: %v", err)
+					}
+				})
+			}
+		})
+		t.Run("Verify", func(t *testing.T) {
+			for _, entry := range paths {
+				if entry.Mode.IsDir() {
+					continue
+				}
+				t.Run(entry.Path, func(t *testing.T) {
+					fullpath := path.Clean(path.Join(i.Mountpoint, entry.Path))
+
+					contents, err := os.ReadFile(fullpath)
+					if err != nil {
+						t.Fatalf("failed to write file: %v", err)
+					}
+
+					if !bytes.Equal(contents, []byte(entry.Contents)) {
+						t.Fatalf("contents doesn't match expected(%s) != received(%s)", entry.Contents, contents)
+						return
+					}
+				})
+			}
+		})
+	})
+}
