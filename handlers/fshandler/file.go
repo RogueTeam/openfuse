@@ -18,20 +18,13 @@ type WriteAtFile interface {
 
 type SetattrFile interface {
 	fs.File
-	Setattr(attr *Setattr) (out AttrOut, err error)
-}
-
-// Better stat used as a way to return more detailed file stats
-type BetterStatFile interface {
-	fs.File
-	BetterStat() (out AttrOut, err error)
+	Setattr(set *Setattr) (info fs.FileInfo, err error)
 }
 
 type FullDir interface {
 	fs.File
 	fs.ReadDirFile
 	SetattrFile
-	BetterStatFile
 }
 
 type FullFile interface {
@@ -39,5 +32,9 @@ type FullFile interface {
 	ReadAtFile
 	WriteAtFile
 	SetattrFile
-	BetterStatFile
+}
+
+type ExtFileInfo interface {
+	fs.FileInfo
+	Ext() (extended *Attributes)
 }

@@ -1,8 +1,12 @@
+//go:build openbsd
+
 package memfs
 
 import (
 	"io/fs"
 	"time"
+
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
 )
 
 type direntry struct {
@@ -29,17 +33,19 @@ func (e *direntry) Info() (fs.FileInfo, error) {
 }
 
 type fileinfo struct {
-	name  string
-	size  int64
-	mode  fs.FileMode
-	mtime time.Time
+	name       string
+	attributes fshandler.Attributes
 }
 
-var _ fs.FileInfo = (*fileinfo)(nil)
+var (
+	_ fs.FileInfo           = (*fileinfo)(nil)
+	_ fshandler.ExtFileInfo = (*fileinfo)(nil)
+)
 
-func (i *fileinfo) Name() string       { return i.name }
-func (i *fileinfo) Size() int64        { return i.size }
-func (i *fileinfo) Mode() fs.FileMode  { return i.mode }
-func (i *fileinfo) ModTime() time.Time { return i.mtime }
-func (i *fileinfo) IsDir() bool        { return i.mode.IsDir() }
-func (i *fileinfo) Sys() any           { return nil }
+func (i *fileinfo) Name() string                          { return i.name }
+func (i *fileinfo) Size() int64                           { return int64(i.attributes.Size) }
+func (i *fileinfo) Mode() fs.FileMode                     { return i.attributes.FileMode() }
+func (i *fileinfo) ModTime() time.Time                    { return i.attributes.ModTime() }
+func (i *fileinfo) IsDir() bool                           { return i.attributes.FileMode().IsDir() }
+func (i *fileinfo) Sys() any                              { return nil }
+func (i *fileinfo) Ext() (extended *fshandler.Attributes) { return &i.attributes }

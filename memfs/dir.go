@@ -10,7 +10,6 @@ import (
 
 	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/handlers/tables"
 )
 
 type Directory struct {
@@ -64,32 +63,9 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 	return dents, nil
 }
 
-func (d *Directory) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
+func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	// TODO: Implement me!
-	return out, fuse.ErrorNotSupported
-}
-
-func (d *Directory) BetterStat() (out fshandler.AttrOut, err error) {
-	out = fshandler.AttrOut{
-		Attr: fshandler.Attr{
-			Size:      0,
-			Blocks:    0,
-			Atime:     0,
-			Mtime:     uint64(d.Info.ModTime().Unix()),
-			Ctime:     0,
-			Atimesec:  0,
-			Mtimesec:  0,
-			Ctimesec:  0,
-			Mode:      uint32(d.Info.mode&0o777) | tables.ModeTypeFromFileMode(d.Info.mode),
-			Nlink:     2,
-			Uid:       0,
-			Gid:       0,
-			Rdev:      0,
-			Blocksize: 0,
-			Padding:   0,
-		},
-	}
-	return out, nil
+	return info, fuse.ErrorNotSupported
 }
 
 var _ fshandler.FullDir = (*Directory)(nil)

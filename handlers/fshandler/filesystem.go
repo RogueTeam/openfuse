@@ -4,11 +4,13 @@ package fshandler
 
 import (
 	"io/fs"
+	"time"
 
 	"github.com/RogueTeam/openfuse/fuse"
+	"golang.org/x/sys/unix"
 )
 
-type Attr struct {
+type Attributes struct {
 	Size      uint64
 	Blocks    uint64
 	Atime     uint64
@@ -26,31 +28,57 @@ type Attr struct {
 	Padding   uint32
 }
 
-type AttrOut struct {
-	Attr Attr
+func (a *Attributes) FileMode() (mode fs.FileMode) {
+	mode |= fs.FileMode(a.Mode & 0o777)
+	switch {
+	case a.Mode&unix.S_IFREG == unix.S_IFREG:
+		mode |= 0
+	case a.Mode&unix.S_IFDIR == unix.S_IFDIR:
+		mode |= fs.ModeDir
+	case a.Mode&unix.S_IFLNK == unix.S_IFLNK:
+		mode |= fs.ModeSymlink
+	case a.Mode&unix.S_IFIFO == unix.S_IFIFO:
+		mode |= fs.ModeNamedPipe
+	case a.Mode&unix.S_IFSOCK == unix.S_IFSOCK:
+		mode |= fs.ModeSocket
+	case a.Mode&unix.S_IFCHR == unix.S_IFCHR:
+		mode |= fs.ModeDevice | fs.ModeCharDevice
+	case a.Mode&unix.S_IFBLK == unix.S_IFBLK:
+		mode |= fs.ModeDevice
+	default:
+		mode |= fs.ModeIrregular
+	}
+	return mode
+}
+
+func (a *Attributes) ModTime() (mtime time.Time) {
+	if a.Mtime != 0 {
+		return time.Unix(int64(a.Mtime), 0)
+	} else if a.Mtimesec != 0 {
+		return time.Unix(int64(a.Mtimesec), 0)
+	}
+	return mtime
 }
 
 // Method reserved by fshandler
-func (a *AttrOut) ToFuse(ino uint64) (out fuse.FuseAttrOut) {
-	return fuse.FuseAttrOut{
-		Attr: fuse.FuseAttr{
-			Ino:       ino,
-			Size:      a.Attr.Size,
-			Blocks:    a.Attr.Blocks,
-			Atime:     a.Attr.Atime,
-			Mtime:     a.Attr.Mtime,
-			Ctime:     a.Attr.Ctime,
-			Atimesec:  a.Attr.Atimesec,
-			Mtimesec:  a.Attr.Mtimesec,
-			Ctimesec:  a.Attr.Ctimesec,
-			Mode:      a.Attr.Mode,
-			Nlink:     a.Attr.Nlink,
-			Uid:       a.Attr.Uid,
-			Gid:       a.Attr.Gid,
-			Rdev:      a.Attr.Rdev,
-			Blocksize: a.Attr.Blocksize,
-			Padding:   a.Attr.Padding,
-		},
+func (a *Attributes) toFuse(ino uint64) (out fuse.FuseAttr) {
+	return fuse.FuseAttr{
+		Ino:       ino,
+		Size:      a.Size,
+		Blocks:    a.Blocks,
+		Atime:     a.Atime,
+		Mtime:     a.Mtime,
+		Ctime:     a.Ctime,
+		Atimesec:  a.Atimesec,
+		Mtimesec:  a.Mtimesec,
+		Ctimesec:  a.Ctimesec,
+		Mode:      a.Mode,
+		Nlink:     a.Nlink,
+		Uid:       a.Uid,
+		Gid:       a.Gid,
+		Rdev:      a.Rdev,
+		Blocksize: a.Blocksize,
+		Padding:   a.Padding,
 	}
 }
 
@@ -120,13 +148,7 @@ type UnlinkFS interface {
 
 type SetattrFS interface {
 	fs.FS
-	Setattr(name string, attr *Setattr) (out AttrOut, err error)
-}
-
-// Better stat used as a way to return more detailed file stats
-type BetterStatFS interface {
-	fs.FS
-	BetterStat(name string) (out AttrOut, err error)
+	Setattr(name string, set *Setattr) (info fs.FileInfo, err error)
 }
 
 // implements a complete filesystem with all features enabled
@@ -138,5 +160,4 @@ type FullFS interface {
 	DestroyFS
 	UnlinkFS
 	SetattrFS
-	BetterStatFS
 }

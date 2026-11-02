@@ -10,7 +10,6 @@ import (
 
 	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/handlers/tables"
 )
 
 type File struct {
@@ -98,8 +97,8 @@ func (f *File) Close() (err error) {
 	if !bytes.Equal(f.Contents, f.Reference.Contents) {
 		f.Reference.Contents = f.Contents
 
-		f.Info.size = int64(len(f.Contents))
-		f.Info.mtime = time.Now()
+		f.Info.attributes.Size = uint64(len(f.Contents))
+		f.Info.attributes.Mtime = uint64(time.Now().Unix())
 	}
 
 	if f.Info != f.Reference.Info {
@@ -108,7 +107,7 @@ func (f *File) Close() (err error) {
 	return nil
 }
 
-func (f *File) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
+func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	if attr.Valid&fuse.FuseFattrSize == fuse.FuseFattrSize {
 		switch {
 		case uint64(len(f.Contents)) == attr.Size:
@@ -124,7 +123,7 @@ func (f *File) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err erro
 		if f.Cursor >= len(f.Contents) {
 			f.Cursor = len(f.Contents) - 1
 		}
-		f.Info.size = int64(len(f.Contents))
+		f.Info.attributes.Size = uint64(len(f.Contents))
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
@@ -143,30 +142,7 @@ func (f *File) Setattr(attr *fshandler.Setattr) (out fshandler.AttrOut, err erro
 		// TODO: Implement me
 	}
 
-	return f.BetterStat()
-}
-
-func (f *File) BetterStat() (out fshandler.AttrOut, err error) {
-	out = fshandler.AttrOut{
-		Attr: fshandler.Attr{
-			Size:      uint64(f.Info.size),
-			Blocks:    1,
-			Atime:     0,
-			Mtime:     uint64(f.Info.ModTime().Unix()),
-			Ctime:     0,
-			Atimesec:  0,
-			Mtimesec:  0,
-			Ctimesec:  0,
-			Mode:      uint32(f.Info.mode&0o777) | tables.ModeTypeFromFileMode(f.Info.mode),
-			Nlink:     2,
-			Uid:       0,
-			Gid:       0,
-			Rdev:      0,
-			Blocksize: uint32(f.Info.size),
-			Padding:   0,
-		},
-	}
-	return out, nil
+	return &f.Info, nil
 }
 
 var _ fshandler.FullFile = (*File)(nil)

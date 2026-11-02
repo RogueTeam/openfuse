@@ -10,5 +10,7 @@
 // Go stdlib filesystem are first class citizens, meaning embed.FS and os.DirFS work outof the box for read-only filesystems
 // For custom implementations it is recommended to actually built your own so you can have thinks like synthetic files.
 //
+// # A unmapped type that is also interesting to implement is the ExtFileInfo when returning any kind of FileInfo, this permits granular control over more fields of the return attrs
+//
 // Check memfs package as an example reference
 package fshandler

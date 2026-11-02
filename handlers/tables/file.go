@@ -9,24 +9,24 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func ModeTypeFromFileMode(mode fs.FileMode) (o uint32) {
+func RawModeFromFileMode(mode fs.FileMode) (o uint32) {
 	switch mode.Type() {
 	case 0:
-		return unix.S_IFREG
+		return uint32(mode.Perm()) | unix.S_IFREG
 	case fs.ModeDir:
-		return unix.S_IFDIR
+		return uint32(mode.Perm()) | unix.S_IFDIR
 	case fs.ModeSymlink:
-		return unix.S_IFLNK
+		return uint32(mode.Perm()) | unix.S_IFLNK
 	case fs.ModeNamedPipe:
-		return unix.S_IFIFO
+		return uint32(mode.Perm()) | unix.S_IFIFO
 	case fs.ModeSocket:
-		return unix.S_IFSOCK
+		return uint32(mode.Perm()) | unix.S_IFSOCK
 	case fs.ModeDevice | fs.ModeCharDevice:
-		return unix.S_IFCHR
+		return uint32(mode.Perm()) | unix.S_IFCHR
 	case fs.ModeDevice:
-		return unix.S_IFBLK
+		return uint32(mode.Perm()) | unix.S_IFBLK
 	default: // case fs.ModeIrregular:
-		return 0
+		return uint32(mode.Perm()) // | 0
 	}
 }
 
@@ -52,7 +52,7 @@ func FileModeFromModeType(mode uint32) (o fs.FileMode) {
 }
 
 func FuseAttrFromFileInfo(ino uint64, info fs.FileInfo) (out fuse.FuseAttr) {
-	mode := uint32(info.Mode().Perm()) | ModeTypeFromFileMode(info.Mode())
+	mode := uint32(info.Mode().Perm()) | RawModeFromFileMode(info.Mode())
 	return fuse.FuseAttr{
 		Ino:   ino,
 		Size:  uint64(info.Size()),

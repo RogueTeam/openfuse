@@ -8,6 +8,10 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/handlers/tables"
+	"golang.org/x/sys/unix"
 )
 
 func (f *FS) HelperMkdirAll(name string, mode fs.FileMode) (err error) {
@@ -23,10 +27,11 @@ func (f *FS) HelperMkdirAll(name string, mode fs.FileMode) (err error) {
 		next := &Node{
 			Name: part,
 			Info: fileinfo{
-				name:  part,
-				size:  0,
-				mode:  (mode & ^fs.ModeType) | fs.ModeDir,
-				mtime: time.Now(),
+				name: part,
+				attributes: fshandler.Attributes{
+					Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFDIR,
+					Mtime: uint64(time.Now().Unix()),
+				},
 			},
 			Children: make(map[string]*Node, 1),
 		}
@@ -55,10 +60,12 @@ func (f *FS) HelperCreateFile[T ~string | ~[]byte](name string, mode fs.FileMode
 	dirNode.Children[filename] = &Node{
 		Name: filename,
 		Info: fileinfo{
-			name:  filename,
-			size:  int64(len(contents)),
-			mode:  mode & ^fs.ModeType,
-			mtime: time.Now(),
+			name: filename,
+			attributes: fshandler.Attributes{
+				Size:  uint64(len(contents)),
+				Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFREG,
+				Mtime: uint64(time.Now().Unix()),
+			},
 		},
 		Contents: []byte(contents),
 	}

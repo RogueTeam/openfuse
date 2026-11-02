@@ -11,7 +11,6 @@ import (
 
 	"github.com/RogueTeam/openfuse/fuse"
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/handlers/tables"
 	"golang.org/x/sys/unix"
 )
 
@@ -147,10 +146,11 @@ func (f *FS) Mkdir(name string, mask, mode uint32) (err error) {
 	inode.Children[childDir] = &Node{
 		Name: childDir,
 		Info: fileinfo{
-			name:  childDir,
-			size:  0,
-			mode:  fs.FileMode(mode&0o777) | tables.FileModeFromModeType(mode),
-			mtime: time.Now(),
+			name: childDir,
+			attributes: fshandler.Attributes{
+				Mode:  mode,
+				Mtime: uint64(time.Now().Unix()),
+			},
 		},
 		Children: make(map[string]*Node),
 	}
@@ -183,58 +183,26 @@ func (f *FS) Unlink(name string) (err error) {
 	return nil
 }
 
-func (f *FS) Setattr(name string, attr *fshandler.Setattr) (out fshandler.AttrOut, err error) {
+func (f *FS) Setattr(name string, attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	node, err := f.Root.Find(name)
 	if err != nil {
-		return fshandler.AttrOut{}, err
+		return nil, err
 	}
 
 	file := node.Open(unix.O_RDWR)
 
 	setattrFile, ok := file.(fshandler.SetattrFile)
 	if !ok {
-		return out, fuse.ErrorNotSupported
+		return nil, fuse.ErrorNotSupported
 	}
 
-	out, err = setattrFile.Setattr(attr)
+	info, err = setattrFile.Setattr(attr)
 	if err != nil {
-		return fshandler.AttrOut{}, err
+		return nil, err
 	}
+	file.Close()
 
-	err = file.Close()
-	if err != nil {
-		return fshandler.AttrOut{}, err
-	}
-
-	return out, nil
-}
-
-func (f *FS) BetterStat(name string) (out fshandler.AttrOut, err error) {
-	node, err := f.Root.Find(name)
-	if err != nil {
-		return out, err
-	}
-
-	out = fshandler.AttrOut{
-		Attr: fshandler.Attr{
-			Size:      uint64(node.Info.size),
-			Blocks:    1,
-			Atime:     0,
-			Mtime:     uint64(node.Info.ModTime().Unix()),
-			Ctime:     0,
-			Atimesec:  0,
-			Mtimesec:  0,
-			Ctimesec:  0,
-			Mode:      uint32(node.Info.mode&0o777) | tables.ModeTypeFromFileMode(node.Info.mode),
-			Nlink:     2,
-			Uid:       0,
-			Gid:       0,
-			Rdev:      0,
-			Blocksize: uint32(node.Info.size),
-			Padding:   0,
-		},
-	}
-	return out, nil
+	return info, nil
 }
 
 var _ fshandler.FullFS = (*FS)(nil)
@@ -244,9 +212,11 @@ func New() (filesystem *FS) {
 		Root: Node{
 			Protected: true,
 			Info: fileinfo{
-				name:  "",
-				mode:  0o700 | fs.ModeDir,
-				mtime: time.Now(),
+				name: "",
+				attributes: fshandler.Attributes{
+					Mode:  0o700 | unix.S_IFDIR,
+					Mtime: uint64(time.Now().Unix()),
+				},
 			},
 			Children: make(map[string]*Node),
 		},
