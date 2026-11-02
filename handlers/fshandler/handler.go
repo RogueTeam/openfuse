@@ -606,15 +606,16 @@ func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.Fuse
 		return fuse.ErrorNotFound
 	}
 
+	fullpath := path.Clean(path.Join(inode.Path, name))
 	var info fs.FileInfo
 	if statFS, ok := h.fs.(fs.StatFS); ok {
 		var err error
-		info, err = statFS.Stat(inode.Path)
+		info, err = statFS.Stat(fullpath)
 		if err != nil {
 			return HErrorFromGoError(err)
 		}
 	} else {
-		file, err := h.fs.Open(inode.Path)
+		file, err := h.fs.Open(fullpath)
 		if err != nil {
 			return HErrorFromGoError(err)
 		}
@@ -630,7 +631,6 @@ func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.Fuse
 		return fuse.ErrorNotDirectory
 	}
 
-	fullpath := path.Clean(path.Join(inode.Path, name))
 	return HErrorFromGoError(rmdirFS.Rmdir(fullpath))
 }
 
