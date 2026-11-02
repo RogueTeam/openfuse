@@ -106,8 +106,5 @@ func (t *InodeTable) ForgetByIno(ino uint64) (hErr *fuse.HError) {
 	// Delete references
 	delete(t.Nodes, ino)
 	delete(t.Paths, inode.Path)
-
-	// TODO: Delete any reference from parent
-	// TODO: Delete references from children
 	return nil
 }

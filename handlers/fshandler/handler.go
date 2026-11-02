@@ -125,7 +125,6 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 		file, err = f.Open(inode.Path)
 	}
 	if err != nil {
-		// TODO: We just failed, should we remove the entry from the inodes list?
 		return out, HErrorFromGoError(err)
 	}
 
@@ -284,7 +283,6 @@ func (h *Handler) Open(ctx context.Context, logger *slog.Logger, header *fuse.Fu
 		file, err = f.Open(inode.Path)
 	}
 	if err != nil {
-		// TODO: We just failed, should we remove the entry from the inodes list?
 		return out, HErrorFromGoError(err)
 	}
 

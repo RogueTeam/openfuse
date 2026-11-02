@@ -91,9 +91,9 @@ type Options struct {
 	Name string
 	// Allow other users to access this FS
 	AllowOther bool
-	// TODO: What is this for?
-	// This is never used in the libfuse sample (last time checked 8.0)
-	DefPerms int
+	// Default permission to apply to every file
+	// TODO: Implement me!
+	DefaultPermissions int
 	// Negotiated max read size
 	MaxRead int
 	// Negotiated max write size
