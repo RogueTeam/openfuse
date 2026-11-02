@@ -925,6 +925,13 @@ func Test_Mknod(t *testing.T) {
 					if err != nil {
 						t.Fatalf("failed to write file: %v", err)
 					}
+
+					t.Run("Twice", func(t *testing.T) {
+						err := os.WriteFile(fullpath, []byte(entry.Contents), entry.Mode)
+						if err != nil {
+							t.Fatalf("failed to write file: %v", err)
+						}
+					})
 				})
 			}
 		})
