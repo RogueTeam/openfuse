@@ -84,11 +84,10 @@ func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 	return n, nil
 }
 
-func (f *File) Close() (err error) {
+func (f *File) Sync() (err error) {
 	if f.Closed {
 		return fs.ErrClosed
 	}
-	f.Closed = true
 
 	if !f.AllowWrite {
 		return nil
@@ -104,7 +103,13 @@ func (f *File) Close() (err error) {
 	if f.Info != f.Reference.Info {
 		f.Reference.Info = f.Info
 	}
-	return nil
+	return
+}
+
+func (f *File) Close() (err error) {
+	err = f.Sync()
+	f.Closed = true
+	return err
 }
 
 func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {

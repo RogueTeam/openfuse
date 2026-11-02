@@ -481,6 +481,12 @@ func Test_OpenWriteRead(t *testing.T) {
 						t.Fatalf("failed to write contents: %v", err)
 						return
 					}
+
+					err = file.Sync()
+					if err != nil {
+						t.Fatalf("failed to sync changes: %v", err)
+						return
+					}
 				})
 			}
 		})

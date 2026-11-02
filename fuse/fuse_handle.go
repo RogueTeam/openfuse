@@ -48,6 +48,8 @@ type Handler interface {
 	Setattr(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseSetattrIn) (out FuseAttrOut, hErr *HError)
 	// Handle file close
 	Flush(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseFlushIn) (hErr *HError)
+	// Syncs a file with the underlying storage
+	Fsync(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseFsyncIn) (hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -281,7 +283,27 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeFSYNC:
+	case FusebufTypeFSYNC:
+		inFsync, hErr := ValueFromBytes[FuseFsyncIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		hErr = f.Handler.Fsync(ctx, logger, header, inFsync)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeFLUSH:
 		inFuse, hErr := ValueFromBytes[FuseFlushIn](inBuffer)
 		if hErr != nil {

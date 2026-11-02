@@ -553,6 +553,27 @@ func (h *Handler) Flush(ctx context.Context, logger *slog.Logger, header *fuse.F
 	return h.fileHandles.Del(fh.FileDescriptor)
 }
 
+func (h *Handler) Fsync(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseFsyncIn) (hErr *fuse.HError) {
+	inode := h.nodes.GetByIno(header.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	fh := h.fileHandles.GetByFd(in.FileHandle)
+	if fh == nil {
+		return fuse.ErrorNotFound
+	}
+
+	if fh.Inode != inode {
+		return fuse.ErrorPermissionDenied
+	}
+
+	if syncFile, ok := fh.Handle.(SyncFile); ok {
+		return HErrorFromGoError(syncFile.Sync())
+	}
+	return fuse.ErrorNotSupported
+}
+
 // TODO: Update with all implementations
 // Provided filesystem may implement any of the following subtypes in order to support more operations
 // When fs.StatFS is implemented any stat operation may be performed directly with the available path without first calling Open

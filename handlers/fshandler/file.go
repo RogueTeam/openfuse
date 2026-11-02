@@ -21,6 +21,11 @@ type SetattrFile interface {
 	Setattr(set *Setattr) (info fs.FileInfo, err error)
 }
 
+type SyncFile interface {
+	fs.File
+	Sync() (err error)
+}
+
 type FullDir interface {
 	fs.File
 	fs.ReadDirFile
@@ -32,6 +37,7 @@ type FullFile interface {
 	ReadAtFile
 	WriteAtFile
 	SetattrFile
+	SyncFile
 }
 
 type ExtFileInfo interface {
