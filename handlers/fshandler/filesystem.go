@@ -30,21 +30,21 @@ type Attributes struct {
 
 func (a *Attributes) FileMode() (mode fs.FileMode) {
 	mode = fs.FileMode(a.Mode & 0o777)
-	switch {
-	case a.Mode&unix.S_IFREG == unix.S_IFREG:
-		mode |= 0
-	case a.Mode&unix.S_IFDIR == unix.S_IFDIR:
-		mode |= fs.ModeDir
-	case a.Mode&unix.S_IFLNK == unix.S_IFLNK:
+	switch a.Mode & fuse.S_IFModeType {
+	case unix.S_IFLNK:
 		mode |= fs.ModeSymlink
-	case a.Mode&unix.S_IFIFO == unix.S_IFIFO:
+	case unix.S_IFDIR:
+		mode |= fs.ModeDir
+	case unix.S_IFIFO:
 		mode |= fs.ModeNamedPipe
-	case a.Mode&unix.S_IFSOCK == unix.S_IFSOCK:
+	case unix.S_IFSOCK:
 		mode |= fs.ModeSocket
-	case a.Mode&unix.S_IFCHR == unix.S_IFCHR:
+	case unix.S_IFCHR:
 		mode |= fs.ModeDevice | fs.ModeCharDevice
-	case a.Mode&unix.S_IFBLK == unix.S_IFBLK:
+	case unix.S_IFBLK:
 		mode |= fs.ModeDevice
+	case unix.S_IFREG:
+		mode |= 0
 	default:
 		mode |= fs.ModeIrregular
 	}
@@ -156,6 +156,12 @@ type RmdirFS interface {
 	Rmdir(name string) (err error)
 }
 
+type SymlinkFS interface {
+	fs.FS
+	Symlink(oldname, newname string) (err error)
+	Readlink(name string) (oldname string, err error)
+}
+
 // implements a complete filesystem with all features enabled
 type FullFS interface {
 	fs.FS
@@ -166,4 +172,5 @@ type FullFS interface {
 	UnlinkFS
 	SetattrFS
 	RmdirFS
+	SymlinkFS
 }

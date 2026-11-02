@@ -5,7 +5,6 @@ package tables
 import (
 	"io/fs"
 
-	"github.com/RogueTeam/openfuse/fuse"
 	"golang.org/x/sys/unix"
 )
 
@@ -48,15 +47,5 @@ func FileModeFromModeType(mode uint32) (o fs.FileMode) {
 		return fs.ModeDevice
 	default:
 		return fs.ModeIrregular
-	}
-}
-
-func FuseAttrFromFileInfo(ino uint64, info fs.FileInfo) (out fuse.FuseAttr) {
-	mode := uint32(info.Mode().Perm()) | RawModeFromFileMode(info.Mode())
-	return fuse.FuseAttr{
-		Ino:   ino,
-		Size:  uint64(info.Size()),
-		Mode:  mode,
-		Mtime: uint64(info.ModTime().UnixMilli()),
 	}
 }

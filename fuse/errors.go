@@ -45,6 +45,7 @@ var (
 	ErrorPermissionDenied  = &HError{Errno: unix.EPERM, GoError: fmt.Errorf("permission denied")}
 	ErrorIsDirectory       = &HError{Errno: unix.EISDIR, GoError: fmt.Errorf("is a directory")}
 	ErrorNotDirectory      = &HError{Errno: unix.ENOTDIR, GoError: fmt.Errorf("is not a directory")}
+	ErrorExists            = &HError{Errno: unix.EEXIST, GoError: fmt.Errorf("already exists")}
 	ErrorNotEmpty          = &HError{Errno: unix.ENOTEMPTY, GoError: fmt.Errorf("not empty")}
 	ErrorBadFileDescriptor = &HError{Errno: unix.EBADF, GoError: fmt.Errorf("bad file descriptor")}
 )

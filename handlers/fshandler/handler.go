@@ -63,12 +63,8 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 			return out, HErrorFromGoError(err)
 		}
 
-		if extInfo, ok := info.(ExtFileInfo); ok {
-			return fuse.FuseAttrOut{Attr: extInfo.Ext().toFuse(header.NodeId)}, nil
-		}
-
 		return fuse.FuseAttrOut{
-			Attr: tables.FuseAttrFromFileInfo(header.NodeId, info),
+			Attr: FuseAttrFromFileInfo(header.NodeId, info),
 		}, nil
 	default:
 		file, err := h.fs.Open(inode.Path)
@@ -82,11 +78,7 @@ func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse
 			return out, HErrorFromGoError(err)
 		}
 
-		if extInfo, ok := info.(ExtFileInfo); ok {
-			return fuse.FuseAttrOut{Attr: extInfo.Ext().toFuse(header.NodeId)}, nil
-		}
-
-		return fuse.FuseAttrOut{Attr: tables.FuseAttrFromFileInfo(header.NodeId, info)}, nil
+		return fuse.FuseAttrOut{Attr: FuseAttrFromFileInfo(header.NodeId, info)}, nil
 	}
 }
 
@@ -226,16 +218,9 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 		return out, HErrorFromGoError(err)
 	}
 
-	if extInfo, ok := info.(ExtFileInfo); ok {
-		return fuse.FuseEntryOut{
-			NodeId: targetInode.NodeId,
-			Attr:   extInfo.Ext().toFuse(targetInode.NodeId),
-		}, nil
-	}
-
 	return fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
-		Attr:   tables.FuseAttrFromFileInfo(targetInode.NodeId, info),
+		Attr:   FuseAttrFromFileInfo(targetInode.NodeId, info),
 	}, nil
 }
 
@@ -381,15 +366,15 @@ useCache:
 	}
 }
 
-func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseMkdirIn, name string) (hErr *fuse.HError) {
+func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseMkdirIn, name string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
 	mkdirFs, ok := h.fs.(MkdirFS)
 	if !ok {
-		return fuse.ErrorNotSupported
+		return out, fuse.ErrorNotSupported
 	}
 
 	inode := h.nodes.GetByIno(header.NodeId)
 	if inode == nil {
-		return fuse.ErrorNotFound
+		return out, fuse.ErrorNotFound
 	}
 
 	var info fs.FileInfo
@@ -397,27 +382,58 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		var err error
 		info, err = statFS.Stat(inode.Path)
 		if err != nil {
-			return HErrorFromGoError(err)
+			return out, HErrorFromGoError(err)
 		}
 	} else {
 		file, err := h.fs.Open(inode.Path)
 		if err != nil {
-			return HErrorFromGoError(err)
+			return out, HErrorFromGoError(err)
 		}
 
 		info, err = file.Stat()
 		file.Close()
 		if err != nil {
-			return HErrorFromGoError(err)
+			return out, HErrorFromGoError(err)
 		}
 	}
 
 	if !info.IsDir() {
-		return fuse.ErrorNotDirectory
+		return out, fuse.ErrorNotDirectory
 	}
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
-	return HErrorFromGoError(mkdirFs.Mkdir(fullpath, in.Mask, in.Mode))
+
+	newInode := h.nodes.New(fullpath, false, false, inode)
+
+	err := mkdirFs.Mkdir(fullpath, in.Mask, in.Mode)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	var dirInfo fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		dirInfo, err = statFS.Stat(fullpath)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(fullpath)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		dirInfo, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+	}
+
+	out.NodeId = newInode.NodeId
+	out.Attr = FuseAttrFromFileInfo(newInode.NodeId, dirInfo)
+
+	return out, nil
 }
 
 func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name string) (hErr *fuse.HError) {
@@ -502,14 +518,8 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 			return out, HErrorFromGoError(err)
 		}
 
-		if extInfo, ok := info.(ExtFileInfo); ok {
-			return fuse.FuseAttrOut{
-				Attr: extInfo.Ext().toFuse(inode.NodeId),
-			}, nil
-		}
-
 		return fuse.FuseAttrOut{
-			Attr: tables.FuseAttrFromFileInfo(inode.NodeId, info),
+			Attr: FuseAttrFromFileInfo(inode.NodeId, info),
 		}, nil
 	}
 
@@ -521,14 +531,8 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 			return out, HErrorFromGoError(err)
 		}
 
-		if extInfo, ok := info.(ExtFileInfo); ok {
-			return fuse.FuseAttrOut{
-				Attr: extInfo.Ext().toFuse(inode.NodeId),
-			}, nil
-		}
-
 		return fuse.FuseAttrOut{
-			Attr: tables.FuseAttrFromFileInfo(inode.NodeId, info),
+			Attr: FuseAttrFromFileInfo(inode.NodeId, info),
 		}, nil
 	}
 
@@ -541,14 +545,8 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 		return out, HErrorFromGoError(err)
 	}
 
-	if extInfo, ok := info.(ExtFileInfo); ok {
-		return fuse.FuseAttrOut{
-			Attr: extInfo.Ext().toFuse(inode.NodeId),
-		}, nil
-	}
-
 	return fuse.FuseAttrOut{
-		Attr: tables.FuseAttrFromFileInfo(inode.NodeId, info),
+		Attr: FuseAttrFromFileInfo(inode.NodeId, info),
 	}, nil
 }
 
@@ -632,6 +630,120 @@ func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.Fuse
 	}
 
 	return HErrorFromGoError(rmdirFS.Rmdir(fullpath))
+}
+
+func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name, oldname string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
+	symlinkFS, ok := h.fs.(SymlinkFS)
+	if !ok {
+		return out, fuse.ErrorNotSupported
+	}
+
+	parent := h.nodes.GetByIno(hdr.NodeId)
+	if parent == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	var parentInfo fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		parentInfo, err = statFS.Stat(parent.Path)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(parent.Path)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		parentInfo, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+	}
+
+	if !parentInfo.IsDir() {
+		return out, fuse.ErrorNotDirectory
+	}
+
+	fullpath := path.Clean(path.Join(parent.Path, name))
+
+	symlinkInode := h.nodes.New(fullpath, false, false, parent)
+
+	err := symlinkFS.Symlink(oldname, fullpath)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	var symlinkInfo fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		symlinkInfo, err = statFS.Stat(fullpath)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(fullpath)
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+
+		symlinkInfo, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return out, HErrorFromGoError(err)
+		}
+	}
+
+	out.NodeId = symlinkInode.NodeId
+	out.Attr = FuseAttrFromFileInfo(symlinkInode.NodeId, symlinkInfo)
+	return out, nil
+}
+
+func (h *Handler) Readlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader) (oldname []byte, hErr *fuse.HError) {
+	symlinkFS, ok := h.fs.(SymlinkFS)
+	if !ok {
+		return nil, fuse.ErrorNotSupported
+	}
+
+	inode := h.nodes.GetByIno(hdr.NodeId)
+	if inode == nil {
+		return nil, fuse.ErrorNotFound
+	}
+
+	var info fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		info, err = statFS.Stat(inode.Path)
+		if err != nil {
+			return nil, HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(inode.Path)
+		if err != nil {
+			return nil, HErrorFromGoError(err)
+		}
+
+		info, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return nil, HErrorFromGoError(err)
+		}
+	}
+
+	if info.Mode().Type() != fs.ModeSymlink {
+		return nil, fuse.ErrorInvalidValue
+	}
+
+	fullpath := path.Clean(inode.Path)
+
+	oldnameS, err := symlinkFS.Readlink(fullpath)
+	if err != nil {
+		return nil, HErrorFromGoError(err)
+	}
+
+	return []byte(oldnameS), nil
 }
 
 // TODO: Update with all implementations

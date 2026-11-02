@@ -3,6 +3,7 @@
 package memfs_test
 
 import (
+	"bytes"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -609,5 +610,75 @@ func Test_OpenWriteRead(t *testing.T) {
 			}
 		})
 
+	})
+}
+
+func Test_Symlink(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		oldname := path.Join(i.Mountpoint, "root/README.md")
+		newname := path.Join(i.Mountpoint, "README.md")
+		t.Run("Create", func(t *testing.T) {
+			err := os.Symlink(oldname, newname)
+			if err != nil {
+				t.Fatalf("failed to create symlink: %v", err)
+				return
+			}
+		})
+		t.Run("Verify", func(t *testing.T) {
+			oldc, err := os.ReadFile(oldname)
+			if err != nil {
+				t.Fatalf("failed to read old file")
+				return
+			}
+
+			newc, err := os.ReadFile(newname)
+			if err != nil {
+				t.Fatalf("failed to read new file")
+				return
+			}
+
+			if !bytes.Equal(oldc, newc) {
+				t.Fatalf("contents doesn't match expected(%s) != received(%s)", oldc, newc)
+				return
+			}
+		})
 	})
 }

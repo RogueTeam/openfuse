@@ -122,3 +122,16 @@ func StringFromBytes(b []byte) (s string, hErr *HError) {
 
 	return string(b[:idx]), nil
 }
+
+// Same as StringFromBytes but doesn't error when the string is not the full buffer
+func LazyStringFromBytes(b []byte) (s string, remaining []byte, hErr *HError) {
+	if len(b) < 2 {
+		return "", nil, ErrorInvalidValue
+	}
+	idx := bytes.IndexByte(b, 0x00)
+	if idx < 1 {
+		return "", nil, ErrorInvalidValue
+	}
+
+	return string(b[:idx]), b[1+idx:], nil
+}

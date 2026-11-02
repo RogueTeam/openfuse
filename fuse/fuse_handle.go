@@ -38,7 +38,7 @@ type Handler interface {
 	// Reads from a file handle
 	Read(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseReadIn) (out []byte, hErr *HError)
 	// Creates a new directory
-	Mkdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMkdirIn, name string) (hErr *HError)
+	Mkdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseMkdirIn, name string) (out FuseEntryOut, hErr *HError)
 	// Unlink is used to remove a file from the filesystem
 	// It is different from hard removals since open handles can still exists
 	Unlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (hErr *HError)
@@ -52,6 +52,10 @@ type Handler interface {
 	Fsync(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseFsyncIn) (hErr *HError)
 	// Removes a directory from the filesystem
 	Rmdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (hErr *HError)
+	// Creates a symlink to received name
+	Symlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name, oldname string) (out FuseEntryOut, hErr *HError)
+	// Reads the old name from a symlink
+	Readlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (oldname []byte, hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -150,8 +154,48 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeREADLINK:
-	case /* TODO: Implement me */ FusebufTypeSYMLINK:
+	case FusebufTypeREADLINK:
+		oldname, hErr := f.Handler.Readlink(ctx, logger, header)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyBuf(header, oldname)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
+	case FusebufTypeSYMLINK:
+		name, inBuffer, hErr := LazyStringFromBytes(inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get name value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		oldname, hErr := StringFromBytes(inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get oldname value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		out, hErr := f.Handler.Symlink(ctx, logger, header, name, oldname)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeMKNOD:
 	case FusebufTypeMKDIR:
 		inMkdir, name, hErr := ValueAndStringFromBytes[FuseMkdirIn](inBuffer)
@@ -160,7 +204,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
-		hErr = f.Handler.Mkdir(ctx, logger, header, inMkdir, name)
+		out, hErr := f.Handler.Mkdir(ctx, logger, header, inMkdir, name)
 		if hErr != nil {
 			logger.
 				With("error", hErr.Error()).
@@ -168,7 +212,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return f.ReplyErrno(header, hErr.getErrno())
 		}
 
-		err := f.ReplyNoValue(header)
+		err := f.ReplyValue(header, &out)
 		if err != nil {
 			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
 			return fmt.Errorf("failed to send reply: %w", err)

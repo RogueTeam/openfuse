@@ -15,11 +15,12 @@ import (
 )
 
 type Node struct {
-	Name      string
-	Protected bool
-	Info      fileinfo
-	Children  map[string]*Node
-	Contents  []byte
+	Name           string
+	Protected      bool
+	Info           fileinfo
+	Children       map[string]*Node
+	Contents       []byte
+	SymlinkOldname string
 }
 
 func (n *Node) DirEntry() (e fs.DirEntry) {
@@ -55,10 +56,23 @@ func (n *Node) openFile(flags uint32) (file *File) {
 	}
 }
 
+func (n *Node) openSymlink() (symlink *Symlink) {
+	switch {
+	default:
+		return &Symlink{
+			Info:      n.Info,
+			Reference: n,
+			Oldname:   n.SymlinkOldname,
+		}
+	}
+}
+
 func (n *Node) Open(flags uint32) (file fs.File) {
 	switch n.Info.Mode().Type() {
 	case 0:
 		return n.openFile(flags)
+	case fs.ModeSymlink:
+		return n.openSymlink()
 	case fs.ModeDir:
 		return &Directory{Reference: n, Info: n.Info}
 	default:
@@ -133,20 +147,25 @@ func (f *FS) Mkdir(name string, mask, mode uint32) (err error) {
 		return fuse.ErrorInvalidValue
 	}
 
-	dir, childDir := path.Split(name)
-	inode, err := f.Root.Find(dir)
+	dir, target := path.Split(name)
+	parent, err := f.Root.Find(dir)
 	if err != nil {
 		return err
 	}
 
-	if !inode.Info.Mode().IsDir() {
+	if !parent.Info.Mode().IsDir() {
 		return fuse.ErrorNotDirectory
 	}
 
-	inode.Children[childDir] = &Node{
-		Name: childDir,
+	_, found := parent.Children[target]
+	if found {
+		return fuse.ErrorExists
+	}
+
+	parent.Children[target] = &Node{
+		Name: target,
 		Info: fileinfo{
-			name: childDir,
+			name: target,
 			attributes: fshandler.Attributes{
 				Mode:  mode,
 				Mtime: uint64(time.Now().Unix()),
@@ -236,6 +255,50 @@ func (f *FS) Rmdir(name string) (err error) {
 	delete(parent.Children, target)
 
 	return nil
+}
+
+func (f *FS) Symlink(oldname, newname string) (err error) {
+	dir, target := path.Split(newname)
+	parent, err := f.Root.Find(dir)
+	if err != nil {
+		return err
+	}
+
+	if !parent.Info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	_, found := parent.Children[target]
+	if found {
+		return fuse.ErrorExists
+	}
+
+	parent.Children[target] = &Node{
+		Name: target,
+		Info: fileinfo{
+			name: target,
+			attributes: fshandler.Attributes{
+				Mode:  0o777 | unix.S_IFLNK,
+				Mtime: uint64(time.Now().Unix()),
+			},
+		},
+		SymlinkOldname: oldname,
+	}
+
+	return nil
+}
+
+func (f *FS) Readlink(name string) (oldname string, err error) {
+	node, err := f.Root.Find(name)
+	if err != nil {
+		return "", err
+	}
+
+	if node.Info.Mode().Type() != fs.ModeSymlink {
+		return "", fuse.ErrorInvalidValue
+	}
+
+	return node.SymlinkOldname, nil
 }
 
 var _ fshandler.FullFS = (*FS)(nil)
