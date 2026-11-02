@@ -9,43 +9,43 @@ import (
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
 )
 
-type direntry struct {
-	name string
-	info fs.FileInfo
+type Dirent struct {
+	SetName string
+	SetInfo fs.FileInfo
 }
 
-var _ fs.DirEntry = (*direntry)(nil)
+var _ fs.DirEntry = (*Dirent)(nil)
 
-func (e *direntry) Name() string {
-	return e.name
+func (e *Dirent) Name() string {
+	return e.SetName
 }
 
-func (e *direntry) IsDir() bool {
-	return e.info.IsDir()
+func (e *Dirent) IsDir() bool {
+	return e.SetInfo.IsDir()
 }
 
-func (e *direntry) Type() fs.FileMode {
-	return e.info.Mode()
+func (e *Dirent) Type() fs.FileMode {
+	return e.SetInfo.Mode()
 }
 
-func (e *direntry) Info() (fs.FileInfo, error) {
-	return e.info, nil
+func (e *Dirent) Info() (fs.FileInfo, error) {
+	return e.SetInfo, nil
 }
 
-type fileinfo struct {
-	name       string
-	attributes fshandler.Attributes
+type FileInfo struct {
+	SetName    string
+	Attributes fshandler.Attributes
 }
 
 var (
-	_ fs.FileInfo           = (*fileinfo)(nil)
-	_ fshandler.ExtFileInfo = (*fileinfo)(nil)
+	_ fs.FileInfo           = (*FileInfo)(nil)
+	_ fshandler.ExtFileInfo = (*FileInfo)(nil)
 )
 
-func (i *fileinfo) Name() string                          { return i.name }
-func (i *fileinfo) Size() int64                           { return int64(i.attributes.Size) }
-func (i *fileinfo) Mode() fs.FileMode                     { return i.attributes.FileMode() }
-func (i *fileinfo) ModTime() time.Time                    { return i.attributes.ModTime() }
-func (i *fileinfo) IsDir() bool                           { return i.attributes.FileMode().IsDir() }
-func (i *fileinfo) Sys() any                              { return nil }
-func (i *fileinfo) Ext() (extended *fshandler.Attributes) { return &i.attributes }
+func (i *FileInfo) Name() string                          { return i.SetName }
+func (i *FileInfo) Size() int64                           { return int64(i.Attributes.Size) }
+func (i *FileInfo) Mode() fs.FileMode                     { return i.Attributes.FileMode() }
+func (i *FileInfo) ModTime() time.Time                    { return i.Attributes.ModTime() }
+func (i *FileInfo) IsDir() bool                           { return i.Attributes.FileMode().IsDir() }
+func (i *FileInfo) Sys() any                              { return nil }
+func (i *FileInfo) Ext() (extended *fshandler.Attributes) { return &i.Attributes }

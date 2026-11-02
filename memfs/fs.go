@@ -4,6 +4,7 @@ package memfs
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -15,18 +16,17 @@ import (
 )
 
 type Node struct {
-	Name           string
 	Protected      bool
-	Info           fileinfo
+	Info           FileInfo
 	Children       map[string]*Node
 	Contents       []byte
 	SymlinkOldname string
 }
 
 func (n *Node) DirEntry() (e fs.DirEntry) {
-	return &direntry{
-		name: n.Name,
-		info: &n.Info,
+	return &Dirent{
+		SetName: n.Info.SetName,
+		SetInfo: &n.Info,
 	}
 }
 
@@ -163,10 +163,10 @@ func (f *FS) Mkdir(name string, mask, mode uint32) (err error) {
 	}
 
 	parent.Children[target] = &Node{
-		Name: target,
-		Info: fileinfo{
-			name: target,
-			attributes: fshandler.Attributes{
+
+		Info: FileInfo{
+			SetName: target,
+			Attributes: fshandler.Attributes{
 				Mode:  mode,
 				Mtime: uint64(time.Now().Unix()),
 			},
@@ -274,10 +274,10 @@ func (f *FS) Symlink(oldname, newname string) (err error) {
 	}
 
 	parent.Children[target] = &Node{
-		Name: target,
-		Info: fileinfo{
-			name: target,
-			attributes: fshandler.Attributes{
+
+		Info: FileInfo{
+			SetName: target,
+			Attributes: fshandler.Attributes{
 				Mode:  0o777 | unix.S_IFLNK,
 				Mtime: uint64(time.Now().Unix()),
 			},
@@ -301,15 +301,74 @@ func (f *FS) Readlink(name string) (oldname string, err error) {
 	return node.SymlinkOldname, nil
 }
 
+func (f *FS) Rename(oldpath, newpath string) (err error) {
+	oldDir, oldName := path.Split(oldpath)
+	newDir, newName := path.Split(newpath)
+
+	fmt.Println(oldDir, oldName)
+	fmt.Println(newDir, newName)
+
+	oldN, err := f.Root.Find(oldDir)
+	if err != nil {
+		return err
+	}
+
+	if !oldN.Info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	target, found := oldN.Children[oldName]
+	if !found {
+		return fuse.ErrorNotFound
+	}
+
+	newN, err := f.Root.Find(newDir)
+	if err != nil {
+		return err
+	}
+	if !newN.Info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	existing, found := newN.Children[newName]
+	if !found {
+		target.Info.SetName = newName
+		newN.Children[newName] = target
+		delete(oldN.Children, oldName)
+		return nil
+	}
+
+	if existing.Info.Mode().Type() == target.Info.Mode().Type() {
+		if existing.Info.IsDir() && len(existing.Children) > 0 {
+			return fuse.ErrorExists
+		}
+
+		target.Info.SetName = newName
+		newN.Children[newName] = target
+		delete(oldN.Children, oldName)
+		return nil
+	}
+
+	if existing.Info.IsDir() && !target.Info.IsDir() {
+		return fuse.ErrorIsDirectory
+	} else if !existing.Info.IsDir() && target.Info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+	target.Info.SetName = newName
+	newN.Children[newName] = target
+	delete(oldN.Children, oldName)
+	return nil
+}
+
 var _ fshandler.FullFS = (*FS)(nil)
 
 func New() (filesystem *FS) {
 	return &FS{
 		Root: Node{
 			Protected: true,
-			Info: fileinfo{
-				name: "",
-				attributes: fshandler.Attributes{
+			Info: FileInfo{
+				SetName: "",
+				Attributes: fshandler.Attributes{
 					Mode:  0o700 | unix.S_IFDIR,
 					Mtime: uint64(time.Now().Unix()),
 				},

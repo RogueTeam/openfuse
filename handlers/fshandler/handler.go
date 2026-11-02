@@ -49,6 +49,20 @@ type Handler struct {
 
 var _ fuse.Handler = (*Handler)(nil)
 
+func (h *Handler) pathInfo(name string) (info fs.FileInfo, err error) {
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		return statFS.Stat(name)
+	}
+
+	file, err := h.fs.Open(name)
+	if err != nil {
+		return nil, HErrorFromGoError(err)
+	}
+	defer file.Close()
+
+	return file.Stat()
+}
+
 func (h *Handler) GetAttr(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseGetattrIn) (out fuse.FuseAttrOut, hErr *fuse.HError) {
 	inode := h.nodes.GetByIno(header.NodeId)
 	if inode == nil {
@@ -204,6 +218,8 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 	}
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
+
+	fmt.Println("lookup", fullpath)
 
 	file, err := h.fs.Open(fullpath)
 	if err != nil {
@@ -377,24 +393,9 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, fuse.ErrorNotFound
 	}
 
-	var info fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
-		var err error
-		info, err = statFS.Stat(inode.Path)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-	} else {
-		file, err := h.fs.Open(inode.Path)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-
-		info, err = file.Stat()
-		file.Close()
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
+	info, err := h.pathInfo(inode.Path)
+	if err != nil {
+		return out, HErrorFromGoError(err)
 	}
 
 	if !info.IsDir() {
@@ -405,29 +406,14 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 
 	newInode := h.nodes.New(fullpath, false, false, inode)
 
-	err := mkdirFs.Mkdir(fullpath, in.Mask, in.Mode)
+	err = mkdirFs.Mkdir(fullpath, in.Mask, in.Mode)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
 
-	var dirInfo fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
-		var err error
-		dirInfo, err = statFS.Stat(fullpath)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-	} else {
-		file, err := h.fs.Open(fullpath)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-
-		dirInfo, err = file.Stat()
-		file.Close()
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
+	dirInfo, err := h.pathInfo(fullpath)
+	if err != nil {
+		return out, HErrorFromGoError(err)
 	}
 
 	out.NodeId = newInode.NodeId
@@ -448,24 +434,10 @@ func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 	}
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
-	var info fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
-		var err error
-		info, err = statFS.Stat(fullpath)
-		if err != nil {
-			return HErrorFromGoError(err)
-		}
-	} else {
-		file, err := h.fs.Open(fullpath)
-		if err != nil {
-			return HErrorFromGoError(err)
-		}
 
-		info, err = file.Stat()
-		file.Close()
-		if err != nil {
-			return HErrorFromGoError(err)
-		}
+	info, err := h.pathInfo(fullpath)
+	if err != nil {
+		return HErrorFromGoError(err)
 	}
 
 	if info.IsDir() {
@@ -605,24 +577,9 @@ func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.Fuse
 	}
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
-	var info fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
-		var err error
-		info, err = statFS.Stat(fullpath)
-		if err != nil {
-			return HErrorFromGoError(err)
-		}
-	} else {
-		file, err := h.fs.Open(fullpath)
-		if err != nil {
-			return HErrorFromGoError(err)
-		}
-
-		info, err = file.Stat()
-		file.Close()
-		if err != nil {
-			return HErrorFromGoError(err)
-		}
+	info, err := h.pathInfo(fullpath)
+	if err != nil {
+		return HErrorFromGoError(err)
 	}
 
 	if !info.IsDir() {
@@ -643,24 +600,9 @@ func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fu
 		return out, fuse.ErrorNotFound
 	}
 
-	var parentInfo fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
-		var err error
-		parentInfo, err = statFS.Stat(parent.Path)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-	} else {
-		file, err := h.fs.Open(parent.Path)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-
-		parentInfo, err = file.Stat()
-		file.Close()
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
+	parentInfo, err := h.pathInfo(parent.Path)
+	if err != nil {
+		return out, HErrorFromGoError(err)
 	}
 
 	if !parentInfo.IsDir() {
@@ -671,29 +613,14 @@ func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fu
 
 	symlinkInode := h.nodes.New(fullpath, false, false, parent)
 
-	err := symlinkFS.Symlink(oldname, fullpath)
+	err = symlinkFS.Symlink(oldname, fullpath)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
 
-	var symlinkInfo fs.FileInfo
-	if statFS, ok := h.fs.(fs.StatFS); ok {
-		var err error
-		symlinkInfo, err = statFS.Stat(fullpath)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-	} else {
-		file, err := h.fs.Open(fullpath)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-
-		symlinkInfo, err = file.Stat()
-		file.Close()
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
+	symlinkInfo, err := h.pathInfo(fullpath)
+	if err != nil {
+		return out, HErrorFromGoError(err)
 	}
 
 	out.NodeId = symlinkInode.NodeId
@@ -744,6 +671,60 @@ func (h *Handler) Readlink(ctx context.Context, logger *slog.Logger, hdr *fuse.F
 	}
 
 	return []byte(oldnameS), nil
+}
+
+func (h *Handler) Rename(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, in *fuse.FuseRenameIn, oldname, newname string) (hErr *fuse.HError) {
+	renameFS, ok := h.fs.(RenameFS)
+	if !ok {
+		return fuse.ErrorNotSupported
+	}
+
+	oldParent := h.nodes.GetByIno(hdr.NodeId)
+	if oldParent == nil {
+		return fuse.ErrorNotFound
+	}
+
+	oldParentInfo, err := h.pathInfo(oldParent.Path)
+	if err != nil {
+		return HErrorFromGoError(err)
+	}
+
+	if !oldParentInfo.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	oldpath := path.Clean(path.Join(oldParent.Path, oldname))
+	target := h.nodes.GetByPath(oldpath)
+	if target == nil {
+		return fuse.ErrorNotFound
+	}
+
+	newParent := h.nodes.GetByIno(in.NewDir)
+	if newParent == nil {
+		return fuse.ErrorNotFound
+	}
+
+	newParentInfo, err := h.pathInfo(newParent.Path)
+	if err != nil {
+		return HErrorFromGoError(err)
+	}
+
+	if !newParentInfo.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	newpath := path.Clean(path.Join(newParent.Path, newname))
+
+	err = renameFS.Rename(oldpath, newpath)
+	if err != nil {
+		return HErrorFromGoError(err)
+	}
+
+	target.Path = newpath
+	delete(h.nodes.Paths, oldpath)
+	h.nodes.Paths[newpath] = target
+
+	return nil
 }
 
 // TODO: Update with all implementations

@@ -15,7 +15,7 @@ import (
 type File struct {
 	AllowRead, AllowWrite bool
 	Closed                bool
-	Info                  fileinfo
+	Info                  FileInfo
 	Reference             *Node
 	Cursor                int
 	Contents              []byte
@@ -96,8 +96,8 @@ func (f *File) Sync() (err error) {
 	if !bytes.Equal(f.Contents, f.Reference.Contents) {
 		f.Reference.Contents = f.Contents
 
-		f.Info.attributes.Size = uint64(len(f.Contents))
-		f.Info.attributes.Mtime = uint64(time.Now().Unix())
+		f.Info.Attributes.Size = uint64(len(f.Contents))
+		f.Info.Attributes.Mtime = uint64(time.Now().Unix())
 	}
 
 	if f.Info != f.Reference.Info {
@@ -128,7 +128,7 @@ func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 		if f.Cursor >= len(f.Contents) {
 			f.Cursor = len(f.Contents) - 1
 		}
-		f.Info.attributes.Size = uint64(len(f.Contents))
+		f.Info.Attributes.Size = uint64(len(f.Contents))
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {

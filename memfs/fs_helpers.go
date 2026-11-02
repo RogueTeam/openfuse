@@ -25,10 +25,10 @@ func (f *FS) HelperMkdirAll(name string, mode fs.FileMode) (err error) {
 		}
 
 		next := &Node{
-			Name: part,
-			Info: fileinfo{
-				name: part,
-				attributes: fshandler.Attributes{
+
+			Info: FileInfo{
+				SetName: part,
+				Attributes: fshandler.Attributes{
 					Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFDIR,
 					Mtime: uint64(time.Now().Unix()),
 				},
@@ -58,10 +58,10 @@ func (f *FS) HelperCreateFile[T ~string | ~[]byte](name string, mode fs.FileMode
 	}
 
 	dirNode.Children[filename] = &Node{
-		Name: filename,
-		Info: fileinfo{
-			name: filename,
-			attributes: fshandler.Attributes{
+
+		Info: FileInfo{
+			SetName: filename,
+			Attributes: fshandler.Attributes{
 				Size:  uint64(len(contents)),
 				Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFREG,
 				Mtime: uint64(time.Now().Unix()),

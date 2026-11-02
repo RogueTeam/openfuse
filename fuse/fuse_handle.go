@@ -56,6 +56,8 @@ type Handler interface {
 	Symlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name, oldname string) (out FuseEntryOut, hErr *HError)
 	// Reads the old name from a symlink
 	Readlink(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (oldname []byte, hErr *HError)
+	// Renames a file to a target destination
+	Rename(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseRenameIn, oldname, newname string) (hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -264,7 +266,38 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeRENAME:
+	case FusebufTypeRENAME:
+		inRename, inBuffer, hErr := LazyValueFromBytes[FuseRenameIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		oldname, inBuffer, hErr := LazyStringFromBytes(inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get oldname value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+		newname, hErr := StringFromBytes(inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get newname value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		hErr = f.Handler.Rename(ctx, logger, header, inRename, oldname, newname)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeLINK:
 	case FusebufTypeOPEN:
 		inOpen, hErr := ValueFromBytes[FuseOpenIn](inBuffer)

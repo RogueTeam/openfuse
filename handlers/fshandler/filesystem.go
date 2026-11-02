@@ -162,6 +162,11 @@ type SymlinkFS interface {
 	Readlink(name string) (oldname string, err error)
 }
 
+type RenameFS interface {
+	fs.FS
+	Rename(oldname, newname string) (err error)
+}
+
 // implements a complete filesystem with all features enabled
 type FullFS interface {
 	fs.FS
@@ -173,4 +178,5 @@ type FullFS interface {
 	SetattrFS
 	RmdirFS
 	SymlinkFS
+	RenameFS
 }

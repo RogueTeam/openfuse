@@ -9,7 +9,7 @@ import (
 )
 
 type Symlink struct {
-	Info      fileinfo
+	Info      FileInfo
 	Reference *Node
 	Oldname   string
 }

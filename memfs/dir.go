@@ -15,7 +15,7 @@ import (
 type Directory struct {
 	Closed    bool
 	Cursor    int
-	Info      fileinfo
+	Info      FileInfo
 	Reference *Node
 }
 

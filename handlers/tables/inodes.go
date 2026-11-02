@@ -14,7 +14,6 @@ type Inode struct {
 	Protected bool
 	// Path of the node
 	Path     string
-	Parent   *Inode
 	Children map[uint64]*Inode
 }
 

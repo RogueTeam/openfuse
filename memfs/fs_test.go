@@ -682,3 +682,139 @@ func Test_Symlink(t *testing.T) {
 		})
 	})
 }
+
+func Test_Rename(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "inside", Mode: 0o700 | fs.ModeDir},
+			{Path: "inside/README.md", Mode: 0o700, Contents: "Hello world"},
+			{Path: "inside-diff", Mode: 0o700 | fs.ModeDir},
+			{Path: "inside-diff/README.md", Mode: 0o700, Contents: "Hello world"},
+			{Path: "outside", Mode: 0o700 | fs.ModeDir},
+			{Path: "outside/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		t.Run("Inside", func(t *testing.T) {
+			t.Run("Same name", func(t *testing.T) {
+				oldname := path.Join(i.Mountpoint, "inside/README.md")
+				newname := path.Join(i.Mountpoint, "README.md")
+				t.Run("Rename", func(t *testing.T) {
+					err := os.Rename(oldname, newname)
+					if err != nil {
+						t.Fatalf("failed to rename: %v", err)
+						return
+					}
+				})
+				t.Run("Verify", func(t *testing.T) {
+					oldc, err := os.ReadFile(oldname)
+					if err == nil {
+						t.Fatalf("read to old file should fail")
+						return
+					}
+
+					newc, err := os.ReadFile(newname)
+					if err != nil {
+						t.Fatalf("failed to read new file")
+						return
+					}
+
+					if bytes.Equal(oldc, newc) {
+						t.Fatalf("contents should match received(%v)", newc)
+						return
+					}
+				})
+			})
+			t.Run("Diff name", func(t *testing.T) {
+				oldname := path.Join(i.Mountpoint, "inside-diff/README.md")
+				newname := path.Join(i.Mountpoint, "diff-README.md")
+				t.Run("Rename", func(t *testing.T) {
+					err := os.Rename(oldname, newname)
+					if err != nil {
+						t.Fatalf("failed to rename: %v", err)
+						return
+					}
+				})
+				t.Run("Verify", func(t *testing.T) {
+					oldc, err := os.ReadFile(oldname)
+					if err == nil {
+						t.Fatalf("read to old file should fail")
+						return
+					}
+
+					newc, err := os.ReadFile(newname)
+					if err != nil {
+						t.Fatalf("failed to read new file")
+						return
+					}
+
+					if bytes.Equal(oldc, newc) {
+						t.Fatalf("contents should match received(%v)", newc)
+						return
+					}
+				})
+			})
+		})
+		t.Run("Ouside", func(t *testing.T) {
+			oldname := path.Join(i.Mountpoint, "outside/README.md")
+			newname := path.Join(t.TempDir(), "README.md")
+			t.Run("Rename", func(t *testing.T) {
+				err := os.Rename(oldname, newname)
+				if err == nil {
+					t.Fatalf("rename should fail: %v", err)
+					return
+				}
+			})
+			t.Run("Verify", func(t *testing.T) {
+				oldc, err := os.ReadFile(oldname)
+				if err != nil {
+					t.Fatalf("failed to read old file")
+					return
+				}
+
+				newc, err := os.ReadFile(newname)
+				if err == nil {
+					t.Fatalf("other path should not exists")
+					return
+				}
+
+				if bytes.Equal(oldc, newc) {
+					t.Fatalf("contents should not match received(%s)", newc)
+					return
+				}
+			})
+		})
+	})
+}

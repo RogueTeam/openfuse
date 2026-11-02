@@ -85,6 +85,15 @@ func ValueFromBytes[T any](b []byte) (v *T, hErr *HError) {
 	return (*T)(unsafe.Pointer(&b[0])), nil
 }
 
+func LazyValueFromBytes[T any](b []byte) (v *T, remaining []byte, hErr *HError) {
+	bSize := int(unsafe.Sizeof(*new(T)))
+	if len(b) < bSize {
+		return nil, nil, ErrorInvalidValue
+	}
+
+	return (*T)(unsafe.Pointer(&b[0])), b[bSize:], nil
+}
+
 // Retrieves the value and the remaining data after it
 func ValueAndDataFromBytes[T any](b []byte) (v *T, data []byte, hErr *HError) {
 	sizeT := int(unsafe.Sizeof(*new(T)))
