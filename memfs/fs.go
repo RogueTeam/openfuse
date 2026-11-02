@@ -40,6 +40,7 @@ func sumStats(a, b fuse.FuseStatfsOut) (o fuse.FuseStatfsOut) {
 }
 
 func (n *Node) Statfs() (stats fuse.FuseStatfsOut) {
+	// TODO: implement me
 	stats.Stat.Files += uint64(len(n.Children))
 
 	for _, child := range n.Children {
