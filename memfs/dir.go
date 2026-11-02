@@ -64,8 +64,27 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 }
 
 func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
-	// TODO: Implement me!
-	return info, fuse.ErrorNotSupported
+	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
+		d.Info.Attributes.Mode = attr.Mode
+
+	}
+	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
+		d.Info.Attributes.Uid = attr.Uid
+
+	}
+	if attr.Valid&fuse.FuseFattrGID == fuse.FuseFattrGID {
+		d.Info.Attributes.Gid = attr.Gid
+	}
+	if attr.Valid&fuse.FuseFattrAtime == fuse.FuseFattrAtime {
+		d.Info.Attributes.Atime = attr.Atime
+		d.Info.Attributes.Atimesec = attr.Atimensec
+	}
+	if attr.Valid&fuse.FuseFattrMtime == fuse.FuseFattrMtime {
+		d.Info.Attributes.Mtime = attr.Mtime
+		d.Info.Attributes.Mtimesec = attr.Mtimensec
+	}
+
+	return &d.Info, nil
 }
 
 var _ fshandler.FullDir = (*Directory)(nil)
