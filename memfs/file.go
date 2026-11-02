@@ -132,24 +132,23 @@ func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
-		return nil, fuse.ErrorNotSupported
-		// TODO: Implement me
+		f.Info.Attributes.Mode = attr.Mode
+
 	}
 	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
-		return nil, fuse.ErrorNotSupported
-		// TODO: Implement me
+		f.Info.Attributes.Uid = attr.Uid
+
 	}
 	if attr.Valid&fuse.FuseFattrGID == fuse.FuseFattrGID {
-		return nil, fuse.ErrorNotSupported
-		// TODO: Implement me
+		f.Info.Attributes.Gid = attr.Gid
 	}
 	if attr.Valid&fuse.FuseFattrAtime == fuse.FuseFattrAtime {
-		// TODO: Implement me
-		return nil, fuse.ErrorNotSupported
+		f.Info.Attributes.Atime = attr.Atime
+		f.Info.Attributes.Atimesec = attr.Atimensec
 	}
 	if attr.Valid&fuse.FuseFattrMtime == fuse.FuseFattrMtime {
-		// TODO: Implement me
-		return nil, fuse.ErrorNotSupported
+		f.Info.Attributes.Mtime = attr.Mtime
+		f.Info.Attributes.Mtimesec = attr.Mtimensec
 	}
 
 	return &f.Info, nil
