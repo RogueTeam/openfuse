@@ -4,7 +4,6 @@ package memfs
 
 import (
 	"bytes"
-	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -304,9 +303,6 @@ func (f *FS) Readlink(name string) (oldname string, err error) {
 func (f *FS) Rename(oldpath, newpath string) (err error) {
 	oldDir, oldName := path.Split(oldpath)
 	newDir, newName := path.Split(newpath)
-
-	fmt.Println(oldDir, oldName)
-	fmt.Println(newDir, newName)
 
 	oldN, err := f.Root.Find(oldDir)
 	if err != nil {

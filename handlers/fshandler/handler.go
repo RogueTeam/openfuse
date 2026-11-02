@@ -219,8 +219,6 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
 
-	fmt.Println("lookup", fullpath)
-
 	file, err := h.fs.Open(fullpath)
 	if err != nil {
 		return out, HErrorFromGoError(err)
