@@ -333,6 +333,92 @@ func Test_Mkdir(t *testing.T) {
 	})
 }
 
+func Test_Rmdir(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "remove", Mode: 0o700 | fs.ModeDir},
+			{Path: "remove/README.md", Mode: 0o700, Contents: "Hello world"},
+			{Path: "remove-all", Mode: 0o700 | fs.ModeDir},
+			{Path: "remove-all/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Errorf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		t.Run("RemoveAll", func(t *testing.T) {
+			fullpath := path.Join(i.Mountpoint, "remove-all")
+
+			info, err := os.Stat(fullpath)
+			if err != nil {
+				t.Fatalf("failed to get directory info: %v", err)
+				return
+			}
+
+			if !info.IsDir() {
+				t.Fatalf("expecting a directory")
+				return
+			}
+
+			err = os.RemoveAll(fullpath)
+			if err != nil {
+				t.Fatalf("failed to remove all from root: %v", err)
+				return
+			}
+		})
+		t.Run("Remove", func(t *testing.T) {
+			fullpath := path.Join(i.Mountpoint, "remove")
+
+			info, err := os.Stat(fullpath)
+			if err != nil {
+				t.Fatalf("failed to get directory info: %v", err)
+				return
+			}
+
+			if !info.IsDir() {
+				t.Fatalf("expecting a directory")
+				return
+			}
+
+			err = os.Remove(fullpath)
+			if err == nil {
+				t.Fatalf("should fail since directory is not empty")
+				return
+			}
+		})
+
+	})
+}
+
 func Test_Unlink(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
 		type Entry struct {

@@ -163,7 +163,7 @@ func (f *FS) Destroy() (err error) {
 }
 
 func (f *FS) Unlink(name string) (err error) {
-	dir, filename := path.Split(name)
+	dir, target := path.Split(name)
 	parent, err := f.Root.Find(dir)
 	if err != nil {
 		return err
@@ -173,12 +173,16 @@ func (f *FS) Unlink(name string) (err error) {
 		return fuse.ErrorNotDirectory
 	}
 
-	_, found := parent.Children[filename]
+	child, found := parent.Children[target]
 	if !found {
 		return fuse.ErrorNotFound
 	}
 
-	delete(parent.Children, filename)
+	if child.Info.IsDir() {
+		return fuse.ErrorIsDirectory
+	}
+
+	delete(parent.Children, target)
 
 	return nil
 }
@@ -203,6 +207,35 @@ func (f *FS) Setattr(name string, attr *fshandler.Setattr) (info fs.FileInfo, er
 	file.Close()
 
 	return info, nil
+}
+
+func (f *FS) Rmdir(name string) (err error) {
+	dir, target := path.Split(name)
+	parent, err := f.Root.Find(dir)
+	if err != nil {
+		return err
+	}
+
+	if !parent.Info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	child, found := parent.Children[target]
+	if !found {
+		return fuse.ErrorNotFound
+	}
+
+	if !child.Info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	if len(child.Children) > 0 {
+		return fuse.ErrorNotEmpty
+	}
+
+	delete(parent.Children, target)
+
+	return nil
 }
 
 var _ fshandler.FullFS = (*FS)(nil)

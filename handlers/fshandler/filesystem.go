@@ -29,7 +29,7 @@ type Attributes struct {
 }
 
 func (a *Attributes) FileMode() (mode fs.FileMode) {
-	mode |= fs.FileMode(a.Mode & 0o777)
+	mode = fs.FileMode(a.Mode & 0o777)
 	switch {
 	case a.Mode&unix.S_IFREG == unix.S_IFREG:
 		mode |= 0
@@ -103,7 +103,7 @@ type Setattr struct {
 	Unused5    uint32
 }
 
-func (s *Setattr) FromFuse(fh fs.File, in *fuse.FuseSetattrIn) {
+func (s *Setattr) fromFuse(fh fs.File, in *fuse.FuseSetattrIn) {
 	s.Valid = in.Valid
 	s.Padding = in.Padding
 	s.FileHandle = fh
@@ -151,6 +151,11 @@ type SetattrFS interface {
 	Setattr(name string, set *Setattr) (info fs.FileInfo, err error)
 }
 
+type RmdirFS interface {
+	fs.FS
+	Rmdir(name string) (err error)
+}
+
 // implements a complete filesystem with all features enabled
 type FullFS interface {
 	fs.FS
@@ -160,4 +165,5 @@ type FullFS interface {
 	DestroyFS
 	UnlinkFS
 	SetattrFS
+	RmdirFS
 }

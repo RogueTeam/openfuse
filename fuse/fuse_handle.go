@@ -50,6 +50,8 @@ type Handler interface {
 	Flush(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseFlushIn) (hErr *HError)
 	// Syncs a file with the underlying storage
 	Fsync(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseFsyncIn) (hErr *HError)
+	// Removes a directory from the filesystem
+	Rmdir(ctx context.Context, logger *slog.Logger, header *FuseInHeader, name string) (hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -195,7 +197,29 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeRMDIR:
+	case FusebufTypeRMDIR:
+		name, hErr := StringFromBytes(inBuffer)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Invalid name")
+			return f.ReplyErrno(header, hErr.Errno)
+		}
+
+		hErr = f.Handler.Rmdir(ctx, logger, header, name)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyNoValue(header)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case /* TODO: Implement me */ FusebufTypeRENAME:
 	case /* TODO: Implement me */ FusebufTypeLINK:
 	case FusebufTypeOPEN:

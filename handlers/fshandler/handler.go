@@ -211,12 +211,9 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 		return out, fuse.ErrorNotFound
 	}
 
-	sub, err := fs.Sub(h.fs, inode.Path)
-	if err != nil {
-		return out, HErrorFromGoError(err)
-	}
+	fullpath := path.Clean(path.Join(inode.Path, name))
 
-	file, err := sub.Open(name)
+	file, err := h.fs.Open(fullpath)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
@@ -419,9 +416,8 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return fuse.ErrorNotDirectory
 	}
 
-	fullname := path.Join(inode.Path, name)
-
-	return HErrorFromGoError(mkdirFs.Mkdir(fullname, in.Mask, in.Mode))
+	fullpath := path.Clean(path.Join(inode.Path, name))
+	return HErrorFromGoError(mkdirFs.Mkdir(fullpath, in.Mask, in.Mode))
 }
 
 func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name string) (hErr *fuse.HError) {
@@ -435,7 +431,32 @@ func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 		return fuse.ErrorNotFound
 	}
 
-	return HErrorFromGoError(unlinkFS.Unlink(path.Join(inode.Path, name)))
+	fullpath := path.Clean(path.Join(inode.Path, name))
+	var info fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		info, err = statFS.Stat(fullpath)
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(fullpath)
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+
+		info, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+	}
+
+	if info.IsDir() {
+		return fuse.ErrorIsDirectory
+	}
+
+	return HErrorFromGoError(unlinkFS.Unlink(fullpath))
 }
 
 func (h *Handler) Write(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseWriteIn, buffer []byte) (out fuse.FuseWriteOut, hErr *fuse.HError) {
@@ -469,7 +490,7 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 
 	var setattr Setattr
 	if fh == nil {
-		setattr.FromFuse(nil, in)
+		setattr.fromFuse(nil, in)
 		// Attempt to use the file system interface
 		setattrFS, ok := h.fs.(SetattrFS)
 		if !ok {
@@ -492,7 +513,7 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 		}, nil
 	}
 
-	setattr.FromFuse(fh.Handle, in)
+	setattr.fromFuse(fh.Handle, in)
 	setattrFile, ok := fh.Handle.(SetattrFile)
 	if ok {
 		info, err := setattrFile.Setattr(&setattr)
@@ -572,6 +593,45 @@ func (h *Handler) Fsync(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return HErrorFromGoError(syncFile.Sync())
 	}
 	return fuse.ErrorNotSupported
+}
+
+func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name string) (hErr *fuse.HError) {
+	rmdirFS, ok := h.fs.(RmdirFS)
+	if !ok {
+		return fuse.ErrorNotSupported
+	}
+
+	inode := h.nodes.GetByIno(hdr.NodeId)
+	if inode == nil {
+		return fuse.ErrorNotFound
+	}
+
+	var info fs.FileInfo
+	if statFS, ok := h.fs.(fs.StatFS); ok {
+		var err error
+		info, err = statFS.Stat(inode.Path)
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+	} else {
+		file, err := h.fs.Open(inode.Path)
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+
+		info, err = file.Stat()
+		file.Close()
+		if err != nil {
+			return HErrorFromGoError(err)
+		}
+	}
+
+	if !info.IsDir() {
+		return fuse.ErrorNotDirectory
+	}
+
+	fullpath := path.Clean(path.Join(inode.Path, name))
+	return HErrorFromGoError(rmdirFS.Rmdir(fullpath))
 }
 
 // TODO: Update with all implementations
