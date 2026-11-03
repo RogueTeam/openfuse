@@ -756,6 +756,7 @@ func Test_Rename(t *testing.T) {
 				Newname: "directory.bak",
 				Expect: Expect{
 					Paths: []ExpectPath{
+						{Path: "directory", Exists: false},
 						{Path: "directory.bak", Exists: true},
 						{Path: "directory.bak/README.md", Exists: true, Contents: "Hello world"},
 						{Path: "directory.bak/sub1/README.md", Exists: true, Contents: "Hello world"},
