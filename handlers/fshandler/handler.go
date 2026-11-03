@@ -566,11 +566,11 @@ func (h *Handler) Flush(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return fuse.ErrorPermissionDenied
 	}
 
-	err := fh.Handle.Close()
-	if err != nil {
-		logger.With("error-msg", err).WarnContext(ctx, "Failed to close directory handle")
+	if syncFile, ok := fh.Handle.(SyncFile); ok {
+		return HErrorFromGoError(syncFile.Sync())
 	}
-	return h.fileHandles.Del(fh.FileDescriptor)
+
+	return nil
 }
 
 func (h *Handler) Fsync(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseFsyncIn) (hErr *fuse.HError) {
