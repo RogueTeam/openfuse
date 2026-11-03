@@ -792,7 +792,7 @@ func (h *Handler) Link(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseI
 	}
 
 	old := h.nodes.GetByIno(inLink.OldNodeId)
-	if parent == nil {
+	if old == nil {
 		return out, fuse.ErrorNotFound
 	}
 
