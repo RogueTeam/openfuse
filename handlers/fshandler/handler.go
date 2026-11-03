@@ -393,7 +393,7 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
 
-	newInode := h.nodes.New(fullpath, false, false, inode)
+	newInode := h.nodes.New(fullpath, true, false, inode)
 
 	err = mkdirFs.Mkdir(fullpath, in.Mask, in.Mode)
 	if err != nil {
@@ -433,7 +433,7 @@ func (h *Handler) Mknod(ctx context.Context, logger *slog.Logger, header *fuse.F
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
 
-	newInode := h.nodes.New(fullpath, false, false, inode)
+	newInode := h.nodes.New(fullpath, true, false, inode)
 
 	err = mknodFs.Mknod(fullpath, in.Rdev, in.Umask, in.Mode)
 	if err != nil {
@@ -640,7 +640,7 @@ func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fu
 
 	fullpath := path.Clean(path.Join(parent.Path, name))
 
-	symlinkInode := h.nodes.New(fullpath, false, false, parent)
+	symlinkInode := h.nodes.New(fullpath, true, false, parent)
 
 	err = symlinkFS.Symlink(oldname, fullpath)
 	if err != nil {
@@ -791,7 +791,7 @@ func (h *Handler) Link(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseI
 
 	fullpath := path.Clean(path.Join(parent.Path, name))
 
-	linkInode := h.nodes.New(fullpath, false, false, parent)
+	linkInode := h.nodes.New(fullpath, true, false, parent)
 
 	err = linkFS.Link(old.Path, fullpath)
 	if err != nil {
