@@ -771,6 +771,50 @@ func (h *Handler) Statfs(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 	return statfsFS.Statfs(), nil
 }
 
+func (h *Handler) Link(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, inLink *fuse.FuseLinkIn, name string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
+	linkFS, ok := h.fs.(LinkFS)
+	if !ok {
+		return out, fuse.ErrorNotSupported
+	}
+
+	parent := h.nodes.GetByIno(hdr.NodeId)
+	if parent == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	parentInfo, err := h.pathInfo(parent.Path)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	if !parentInfo.IsDir() {
+		return out, fuse.ErrorNotDirectory
+	}
+
+	old := h.nodes.GetByIno(inLink.OldNodeId)
+	if parent == nil {
+		return out, fuse.ErrorNotFound
+	}
+
+	fullpath := path.Clean(path.Join(parent.Path, name))
+
+	linkInode := h.nodes.New(fullpath, false, false, parent)
+
+	err = linkFS.Link(old.Path, fullpath)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	linkInfo, err := h.pathInfo(fullpath)
+	if err != nil {
+		return out, HErrorFromGoError(err)
+	}
+
+	out.NodeId = linkInode.NodeId
+	out.Attr = FuseAttrFromFileInfo(linkInode.NodeId, linkInfo)
+	return out, nil
+}
+
 // Provided filesystem may implement FullFS or a subset of it in order to support non Read-Only filesystems.
 // Files and directories may need to implement FullFile or FullDir accordingly in order to support all file and directory operations.
 // ExtFileInfo can be used to return more detailed attributes to the fuse device

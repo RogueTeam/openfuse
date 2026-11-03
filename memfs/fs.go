@@ -426,6 +426,10 @@ func (f *FS) Mknod(name string, rdev uint32, umask uint32, mode uint32) (err err
 	}
 }
 
+func (f *FS) Link(oldname, newname string) (err error) {
+	return fuse.ErrorNotSupported
+}
+
 var _ fshandler.FullFS = (*FS)(nil)
 
 func New() (filesystem *FS) {

@@ -957,3 +957,55 @@ func Test_Mknod(t *testing.T) {
 		})
 	})
 }
+
+func Test_Hardlinks(t *testing.T) {
+	t.Run("Succeed", func(t *testing.T) {
+		type Entry struct {
+			Path     string
+			Mode     fs.FileMode
+			Contents string
+		}
+		paths := []Entry{
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
+			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
+		}
+
+		filesystem := memfs.New()
+		for _, entry := range paths {
+			switch entry.Mode.Type() {
+			case 0:
+				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+			case fs.ModeDir:
+				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+			}
+		}
+
+		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
+		if err != nil {
+			t.Fatal("failed to create fuse instance")
+		}
+		t.Cleanup(func() {
+			t.Logf("Closing running instance")
+			err := i.Close()
+			if err != nil {
+				t.Logf("failed to close: %v", err)
+			}
+		})
+
+		logger := testsuite.Logger(t, slog.LevelDebug)
+		go func() {
+			i.Serve(t.Context(), logger)
+			i.Close()
+		}()
+
+		oldname := path.Clean(path.Join(i.Mountpoint, "root/README.md"))
+		newname := path.Clean(path.Join(i.Mountpoint, "README.md"))
+		t.Run("Create", func(t *testing.T) {
+			err := os.Link(oldname, newname)
+			if err != nil {
+				t.Fatalf("failed to create hardlink: %v", err)
+				return
+			}
+		})
+	})
+}

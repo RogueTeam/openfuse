@@ -177,6 +177,11 @@ type MknodFS interface {
 	Mknod(name string, rdev, umask, mode uint32) (err error)
 }
 
+type LinkFS interface {
+	fs.FS
+	Link(oldname, newname string) (err error)
+}
+
 // implements a complete filesystem with all features enabled
 type FullFS interface {
 	fs.FS
@@ -191,4 +196,5 @@ type FullFS interface {
 	RenameFS
 	StatfsFS
 	MknodFS
+	LinkFS
 }

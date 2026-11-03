@@ -62,6 +62,8 @@ type Handler interface {
 	Rename(ctx context.Context, logger *slog.Logger, header *FuseInHeader, in *FuseRenameIn, oldname, newname string) (hErr *HError)
 	// Retrieves filesystem information
 	Statfs(ctx context.Context, logger *slog.Logger, header *FuseInHeader) (out FuseStatfsOut, hErr *HError)
+	// Creates a hardlink
+	Link(ctx context.Context, logger *slog.Logger, header *FuseInHeader, inLink *FuseLinkIn, name string) (out FuseEntryOut, hErr *HError)
 }
 
 // Handle function responsible of handling requests to then route them to the upper
@@ -322,7 +324,33 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 			return fmt.Errorf("failed to send reply: %w", err)
 		}
 		return nil
-	case /* TODO: Implement me */ FusebufTypeLINK:
+	case FusebufTypeLINK:
+		inLink, inBuffer, hErr := LazyValueFromBytes[FuseLinkIn](inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		name, hErr := StringFromBytes(inBuffer)
+		if hErr != nil {
+			logger.With("error-msg", hErr.Error()).ErrorContext(ctx, "failed to get name value from buffer")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		out, hErr := f.Handler.Link(ctx, logger, header, inLink, name)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Handler Error")
+			return f.ReplyErrno(header, hErr.getErrno())
+		}
+
+		err := f.ReplyValue(header, &out)
+		if err != nil {
+			logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
+			return fmt.Errorf("failed to send reply: %w", err)
+		}
+		return nil
 	case FusebufTypeOPEN:
 		inOpen, hErr := ValueFromBytes[FuseOpenIn](inBuffer)
 		if hErr != nil {
@@ -602,12 +630,4 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 		}
 		return nil
 	}
-
-	logger.ErrorContext(ctx, "Not implemented")
-	err = f.ReplyErrno(header, unix.ENOTSUP)
-	if err != nil {
-		logger.With("error-msg", err).ErrorContext(ctx, "Failed to reply")
-		return fmt.Errorf("failed to reply with error: %w", err)
-	}
-	return nil
 }
