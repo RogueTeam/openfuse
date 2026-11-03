@@ -24,21 +24,23 @@ func (f *FS) HelperMkdirAll(name string, mode fs.FileMode) (err error) {
 			return fmt.Errorf("one of the part already exists and is not a directory: %s", path.Join(parts[:1+index]...))
 		}
 
-		next := &Node{
-
-			Info: FileInfo{
-				SetName: part,
-				Attributes: fshandler.Attributes{
-					Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFDIR,
-					Mtime: uint64(time.Now().UnixMilli()),
+		next, found := curr.Children[part]
+		if !found {
+			next = &Node{
+				Info: FileInfo{
+					SetName: part,
+					Attributes: fshandler.Attributes{
+						Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFDIR,
+						Mtime: uint64(time.Now().UnixMilli()),
+					},
 				},
-			},
-			Children: make(map[string]*Node, 1),
+				Children: make(map[string]*Node, 1),
+			}
+			curr.Children[part] = next
 		}
-
-		curr.Children[part] = next
 		curr = next
 	}
+
 	return nil
 }
 
@@ -58,7 +60,6 @@ func (f *FS) HelperCreateFile[T ~string | ~[]byte](name string, mode fs.FileMode
 	}
 
 	dirNode.Children[filename] = &Node{
-
 		Info: FileInfo{
 			SetName: filename,
 			Attributes: fshandler.Attributes{

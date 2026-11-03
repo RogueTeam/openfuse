@@ -686,137 +686,204 @@ func Test_Symlink(t *testing.T) {
 
 func Test_Rename(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
+		type PrebuiltEntry struct {
 			Path     string
 			Mode     fs.FileMode
 			Contents string
 		}
-		paths := []Entry{
-			{Path: "inside", Mode: 0o700 | fs.ModeDir},
-			{Path: "inside/README.md", Mode: 0o700, Contents: "Hello world"},
-			{Path: "inside-diff", Mode: 0o700 | fs.ModeDir},
-			{Path: "inside-diff/README.md", Mode: 0o700, Contents: "Hello world"},
-			{Path: "outside", Mode: 0o700 | fs.ModeDir},
-			{Path: "outside/README.md", Mode: 0o700, Contents: "Hello world"},
+
+		type ExpectPath struct {
+			Path     string
+			Exists   bool
+			Contents string
+		}
+		type Expect struct {
+			Fail  bool
+			Paths []ExpectPath
 		}
 
-		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
+		type Test struct {
+			Name             string
+			Paths            []PrebuiltEntry
+			Oldname, Newname string
+			Expect           Expect
+		}
+		tests := []Test{
+			{
+				Name: "File",
+				Paths: []PrebuiltEntry{
+					{Path: "directory", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
+				},
+				Oldname: "directory/README.md",
+				Newname: "README.md",
+				Expect: Expect{
+					Paths: []ExpectPath{
+						{Path: "directory", Exists: true},
+						{Path: "directory/README.md", Exists: false},
+						{Path: "README.md", Exists: true, Contents: "Hello world"},
+					},
+				},
+			},
+			{
+				Name: "Just rename",
+				Paths: []PrebuiltEntry{
+					{Path: "directory", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
+				},
+				Oldname: "directory/README.md",
+				Newname: "directory/README.md.bak",
+				Expect: Expect{
+					Paths: []ExpectPath{
+						{Path: "directory", Exists: true},
+						{Path: "directory/README.md", Exists: false},
+						{Path: "directory/README.md.bak", Exists: true, Contents: "Hello world"},
+					},
+				},
+			},
+			{
+				Name: "Populated directory",
+				Paths: []PrebuiltEntry{
+					{Path: "directory/sub1", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/sub2", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/sub3", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
+					{Path: "directory/sub1/README.md", Mode: 0o700, Contents: "Hello world"},
+					{Path: "directory/sub2/README.md", Mode: 0o700, Contents: "Hello world"},
+					{Path: "directory/sub3/README.md", Mode: 0o700, Contents: "Hello world"},
+				},
+				Oldname: "directory",
+				Newname: "directory.bak",
+				Expect: Expect{
+					Paths: []ExpectPath{
+						{Path: "directory.bak", Exists: true},
+						{Path: "directory.bak/README.md", Exists: true, Contents: "Hello world"},
+						{Path: "directory.bak/sub1/README.md", Exists: true, Contents: "Hello world"},
+						{Path: "directory.bak/sub2/README.md", Exists: true, Contents: "Hello world"},
+						{Path: "directory.bak/sub3/README.md", Exists: true, Contents: "Hello world"},
+					},
+				},
+			},
+			{
+				Name: "Different device",
+				Paths: []PrebuiltEntry{
+					{Path: "directory", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
+				},
+				Oldname: "directory/README.md",
+				Newname: path.Join(t.TempDir(), "/directory/README.md.bak"),
+				Expect: Expect{
+					Fail: true,
+					Paths: []ExpectPath{
+						{Path: "directory", Exists: true},
+						{Path: "directory/README.md", Exists: true, Contents: "Hello world"},
+					},
+				},
+			},
 		}
 
-		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
-		if err != nil {
-			t.Fatal("failed to create fuse instance")
-		}
-		t.Cleanup(func() {
-			t.Logf("Closing running instance")
-			err := i.Close()
-			if err != nil {
-				t.Logf("failed to close: %v", err)
-			}
-		})
+		for _, test := range tests {
+			t.Run(test.Name, func(t *testing.T) {
+				filesystem := memfs.New()
+				for _, entry := range test.Paths {
+					switch entry.Mode.Type() {
+					case 0:
+						err := filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
+						if err != nil {
+							t.Fatalf("failed to create file: %v", err)
+						}
 
-		logger := testsuite.Logger(t, slog.LevelDebug)
-		go func() {
-			i.Serve(t.Context(), logger)
-			i.Close()
-		}()
+					case fs.ModeDir:
+						err := filesystem.HelperMkdirAll(entry.Path, entry.Mode)
+						if err != nil {
+							t.Fatalf("failed to create directory: %v", err)
+						}
 
-		t.Run("Inside", func(t *testing.T) {
-			t.Run("Same name", func(t *testing.T) {
-				oldname := path.Join(i.Mountpoint, "inside/README.md")
-				newname := path.Join(i.Mountpoint, "README.md")
-				t.Run("Rename", func(t *testing.T) {
-					err := os.Rename(oldname, newname)
-					if err != nil {
-						t.Fatalf("failed to rename: %v", err)
-						return
 					}
-				})
-				t.Run("Verify", func(t *testing.T) {
-					oldc, err := os.ReadFile(oldname)
-					if err == nil {
-						t.Fatalf("read to old file should fail")
-						return
-					}
-
-					newc, err := os.ReadFile(newname)
-					if err != nil {
-						t.Fatalf("failed to read new file")
-						return
-					}
-
-					if bytes.Equal(oldc, newc) {
-						t.Fatalf("contents should match received(%v)", newc)
-						return
-					}
-				})
-			})
-			t.Run("Diff name", func(t *testing.T) {
-				oldname := path.Join(i.Mountpoint, "inside-diff/README.md")
-				newname := path.Join(i.Mountpoint, "diff-README.md")
-				t.Run("Rename", func(t *testing.T) {
-					err := os.Rename(oldname, newname)
-					if err != nil {
-						t.Fatalf("failed to rename: %v", err)
-						return
-					}
-				})
-				t.Run("Verify", func(t *testing.T) {
-					oldc, err := os.ReadFile(oldname)
-					if err == nil {
-						t.Fatalf("read to old file should fail")
-						return
-					}
-
-					newc, err := os.ReadFile(newname)
-					if err != nil {
-						t.Fatalf("failed to read new file")
-						return
-					}
-
-					if bytes.Equal(oldc, newc) {
-						t.Fatalf("contents should match received(%v)", newc)
-						return
-					}
-				})
-			})
-		})
-		t.Run("Ouside", func(t *testing.T) {
-			oldname := path.Join(i.Mountpoint, "outside/README.md")
-			newname := path.Join(t.TempDir(), "README.md")
-			t.Run("Rename", func(t *testing.T) {
-				err := os.Rename(oldname, newname)
-				if err == nil {
-					t.Fatalf("rename should fail: %v", err)
-					return
 				}
-			})
-			t.Run("Verify", func(t *testing.T) {
-				oldc, err := os.ReadFile(oldname)
+
+				i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 				if err != nil {
-					t.Fatalf("failed to read old file")
+					t.Fatal("failed to create fuse instance")
+				}
+				t.Cleanup(func() {
+					t.Logf("Closing running instance")
+					err := i.Close()
+					if err != nil {
+						t.Logf("failed to close: %v", err)
+					}
+				})
+
+				logger := testsuite.Logger(t, slog.LevelDebug)
+				go func() {
+					i.Serve(t.Context(), logger)
+					i.Close()
+				}()
+
+				var oldname, newname string
+				if strings.HasPrefix(test.Oldname, "/") {
+					oldname = test.Oldname
+				} else {
+					oldname = path.Join(i.Mountpoint, test.Oldname)
+				}
+
+				if strings.HasPrefix(test.Newname, "/") {
+					newname = test.Newname
+				} else {
+					newname = path.Join(i.Mountpoint, test.Newname)
+				}
+
+				err = os.Rename(oldname, newname)
+				if test.Expect.Fail && err == nil {
+					t.Fatalf("rename should fail")
+					return
+				} else if !test.Expect.Fail && err != nil {
+					t.Fatalf("rename should succeed: %v", err)
 					return
 				}
 
-				newc, err := os.ReadFile(newname)
-				if err == nil {
-					t.Fatalf("other path should not exists")
-					return
-				}
+				t.Run("Verifying Paths", func(t *testing.T) {
+					for _, entry := range test.Expect.Paths {
+						t.Run(entry.Path, func(t *testing.T) {
+							fullpath := path.Join(i.Mountpoint, entry.Path)
+							info, err := os.Stat(fullpath)
+							if entry.Exists {
+								if err != nil {
+									t.Fatalf("failed to get file info: %v", err)
+									return
+								}
+							} else {
+								if err == nil {
+									t.Fatalf("file should not exists")
+									return
+								}
 
-				if bytes.Equal(oldc, newc) {
-					t.Fatalf("contents should not match received(%s)", newc)
-					return
-				}
+								if os.IsNotExist(err) {
+									return
+								}
+								t.Fatalf("file should not exists: %v", err)
+								return
+							}
+
+							if info.IsDir() {
+								return
+							}
+
+							contents, err := os.ReadFile(fullpath)
+							if err != nil {
+								t.Fatalf("failed to read contents: %v", err)
+								return
+							}
+
+							if !bytes.Equal(contents, []byte(entry.Contents)) {
+								t.Fatalf("contents doesn't match: expect(%s) != received(%s)", entry.Contents, contents)
+								return
+							}
+						})
+					}
+				})
 			})
-		})
+		}
 	})
 }
 

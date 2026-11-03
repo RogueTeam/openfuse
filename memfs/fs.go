@@ -331,33 +331,34 @@ func (f *FS) Rename(oldpath, newpath string) (err error) {
 	oldDir, oldName := path.Split(oldpath)
 	newDir, newName := path.Split(newpath)
 
-	oldN, err := f.Root.Find(oldDir)
+	oldParent, err := f.Root.Find(oldDir)
 	if err != nil {
 		return err
 	}
 
-	if !oldN.Info.IsDir() {
+	if !oldParent.Info.IsDir() {
 		return fuse.ErrorNotDirectory
 	}
 
-	target, found := oldN.Children[oldName]
+	target, found := oldParent.Children[oldName]
 	if !found {
 		return fuse.ErrorNotFound
 	}
 
-	newN, err := f.Root.Find(newDir)
+	newParent, err := f.Root.Find(newDir)
 	if err != nil {
 		return err
 	}
-	if !newN.Info.IsDir() {
+	if !newParent.Info.IsDir() {
 		return fuse.ErrorNotDirectory
 	}
 
-	existing, found := newN.Children[newName]
+	existing, found := newParent.Children[newName]
 	if !found {
+
 		target.Info.SetName = newName
-		newN.Children[newName] = target
-		delete(oldN.Children, oldName)
+		newParent.Children[newName] = target
+		delete(oldParent.Children, oldName)
 		return nil
 	}
 
@@ -367,8 +368,8 @@ func (f *FS) Rename(oldpath, newpath string) (err error) {
 		}
 
 		target.Info.SetName = newName
-		newN.Children[newName] = target
-		delete(oldN.Children, oldName)
+		newParent.Children[newName] = target
+		delete(oldParent.Children, oldName)
 		return nil
 	}
 
@@ -378,8 +379,8 @@ func (f *FS) Rename(oldpath, newpath string) (err error) {
 		return fuse.ErrorNotDirectory
 	}
 	target.Info.SetName = newName
-	newN.Children[newName] = target
-	delete(oldN.Children, oldName)
+	newParent.Children[newName] = target
+	delete(oldParent.Children, oldName)
 	return nil
 }
 

@@ -749,10 +749,7 @@ func (h *Handler) Rename(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 		return HErrorFromGoError(err)
 	}
 
-	target.Path = newpath
-	delete(h.nodes.Paths, oldpath)
-	h.nodes.Paths[newpath] = target
-
+	h.nodes.ChangeDirectory(target, newpath)
 	return nil
 }
 

@@ -33,6 +33,30 @@ func (t *InodeTable) init() {
 	}
 }
 
+func (t *InodeTable) ChangeChildDirectory(n *Inode, olddir, newdir string) {
+	delete(t.Paths, n.Path)
+
+	n.Path = newdir + n.Path[len(olddir):]
+	t.Paths[n.Path] = n
+
+	for _, child := range n.Children {
+		t.ChangeChildDirectory(child, olddir, newdir)
+	}
+}
+
+// Changes the directory of this node and all its children
+func (t *InodeTable) ChangeDirectory(n *Inode, newname string) {
+	delete(t.Paths, n.Path)
+
+	oldname := n.Path
+	n.Path = newname
+	t.Paths[n.Path] = n
+
+	for _, child := range n.Children {
+		t.ChangeChildDirectory(child, oldname, newname)
+	}
+}
+
 // Creates a new inode by its path or retrieves a existing
 func (t *InodeTable) New(path string, lookup, protected bool, parent *Inode) (inode *Inode) {
 	t.init()
@@ -93,7 +117,11 @@ func (t *InodeTable) ForgetByIno(ino uint64, nlookup uint64) (hErr *fuse.HError)
 		return fuse.ErrorNotFound
 	}
 
-	inode.Viewers -= nlookup
+	if inode.Viewers < nlookup {
+		inode.Viewers = 0
+	} else {
+		inode.Viewers -= nlookup
+	}
 	if inode.Protected {
 		return fuse.ErrorPermissionDenied
 	}
