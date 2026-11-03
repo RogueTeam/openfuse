@@ -3,6 +3,8 @@
 package tables
 
 import (
+	"strings"
+
 	"github.com/RogueTeam/openfuse/fuse"
 )
 
@@ -13,8 +15,7 @@ type Inode struct {
 	// Special condition that prevents an inode from being removed
 	Protected bool
 	// Path of the node
-	Path     string
-	Children map[uint64]*Inode
+	Path string
 }
 
 type InodeTable struct {
@@ -33,17 +34,6 @@ func (t *InodeTable) init() {
 	}
 }
 
-func (t *InodeTable) ChangeChildDirectory(n *Inode, olddir, newdir string) {
-	delete(t.Paths, n.Path)
-
-	n.Path = newdir + n.Path[len(olddir):]
-	t.Paths[n.Path] = n
-
-	for _, child := range n.Children {
-		t.ChangeChildDirectory(child, olddir, newdir)
-	}
-}
-
 // Changes the directory of this node and all its children
 func (t *InodeTable) ChangeDirectory(n *Inode, newname string) {
 	delete(t.Paths, n.Path)
@@ -52,8 +42,15 @@ func (t *InodeTable) ChangeDirectory(n *Inode, newname string) {
 	n.Path = newname
 	t.Paths[n.Path] = n
 
-	for _, child := range n.Children {
-		t.ChangeChildDirectory(child, oldname, newname)
+	// This is slow but is the only hack I could think fast
+	// TODO: Implement a proper lookup algorithm
+	// Reference parent and children somehow
+	for name, entry := range t.Paths {
+		if strings.HasPrefix(name, oldname) {
+			delete(t.Paths, name)
+			entry.Path = newname + name[len(oldname):]
+			t.Paths[entry.Path] = entry
+		}
 	}
 }
 
