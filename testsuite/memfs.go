@@ -50,7 +50,7 @@ func MemfsMkdirAll(tb testing.TB, f *memfs.FS, name string, mode fs.FileMode) {
 					SetName: part,
 					Attributes: fshandler.Attributes{
 						Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFDIR,
-						Mtime: uint64(time.Now().UnixMilli()),
+						Mtime: uint64(time.Now().Unix()),
 					},
 				},
 				Children: make(map[string]*memfs.Node, 1),
@@ -85,7 +85,7 @@ func MemfsCreateFile[T ~string | ~[]byte](tb testing.TB, f *memfs.FS, name strin
 			Attributes: fshandler.Attributes{
 				Size:  uint64(len(contents)),
 				Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFREG,
-				Mtime: uint64(time.Now().UnixMilli()),
+				Mtime: uint64(time.Now().Unix()),
 			},
 		},
 		Contents: []byte(contents),

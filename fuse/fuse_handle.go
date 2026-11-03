@@ -104,7 +104,7 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 				ErrorContext(ctx, "Failed to send kill error response")
 			return hErr
 		}
-		return fmt.Errorf("unknown opcode: %d", header.Opcode)
+		return nil
 	case FusebufTypeLOOKUP:
 		name, hErr := StringFromBytes(inBuffer)
 		if hErr != nil {

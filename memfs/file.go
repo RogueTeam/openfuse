@@ -97,7 +97,7 @@ func (f *File) Sync() (err error) {
 		f.Reference.Contents = f.Contents
 
 		f.Info.Attributes.Size = uint64(len(f.Contents))
-		f.Info.Attributes.Mtime = uint64(time.Now().UnixMilli())
+		f.Info.Attributes.Mtime = uint64(time.Now().Unix())
 	}
 
 	if f.Info != f.Reference.Info {

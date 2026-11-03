@@ -53,7 +53,7 @@ func (a *Attributes) FileMode() (mode fs.FileMode) {
 
 func (a *Attributes) ModTime() (mtime time.Time) {
 	if a.Mtime != 0 {
-		return time.UnixMilli(int64(a.Mtime))
+		return time.Unix(int64(a.Mtime), 0)
 	} else if a.Mtimesec != 0 {
 		return time.Unix(int64(a.Mtimesec), 0)
 	}

@@ -18,6 +18,6 @@ func FuseAttrFromFileInfo(ino uint64, info fs.FileInfo) (out fuse.FuseAttr) {
 		Ino:   ino,
 		Size:  uint64(info.Size()),
 		Mode:  mode,
-		Mtime: uint64(info.ModTime().UnixMilli()),
+		Mtime: uint64(info.ModTime().Unix()),
 	}
 }
