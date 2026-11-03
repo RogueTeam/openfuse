@@ -75,17 +75,17 @@ func (t *InodeTable) GetByIno(ino uint64) (inode *Inode) {
 	return inode
 }
 
-func (t *InodeTable) ForgetByPath(path string) {
+func (t *InodeTable) ForgetByPath(path string, nlookup uint64) {
 	t.init()
 
 	inode, found := t.Paths[path]
 	if !found {
 		return
 	}
-	t.ForgetByIno(inode.NodeId)
+	t.ForgetByIno(inode.NodeId, nlookup)
 }
 
-func (t *InodeTable) ForgetByIno(ino uint64) (hErr *fuse.HError) {
+func (t *InodeTable) ForgetByIno(ino uint64, nlookup uint64) (hErr *fuse.HError) {
 	t.init()
 
 	inode, found := t.Nodes[ino]
@@ -93,7 +93,7 @@ func (t *InodeTable) ForgetByIno(ino uint64) (hErr *fuse.HError) {
 		return fuse.ErrorNotFound
 	}
 
-	inode.Viewers--
+	inode.Viewers -= nlookup
 	if inode.Protected {
 		return fuse.ErrorPermissionDenied
 	}

@@ -258,7 +258,7 @@ func (h *Handler) Forget(ctx context.Context, logger *slog.Logger, header *fuse.
 		return fuse.ErrorNotFound
 	}
 
-	return h.nodes.ForgetByIno(inode.NodeId)
+	return h.nodes.ForgetByIno(inode.NodeId, in.Nlookup)
 }
 
 func (h *Handler) Open(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseOpenIn) (out fuse.FuseOpenOut, hErr *fuse.HError) {
