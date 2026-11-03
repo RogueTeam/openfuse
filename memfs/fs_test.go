@@ -92,25 +92,13 @@ func Test_Getattr(t *testing.T) {
 
 func Test_Readdir(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
-			{Path: "root", Mode: 0o700},
+		paths := []testsuite.MemfsPrebuiltEntry{
+			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -163,7 +151,7 @@ func Test_Readdir(t *testing.T) {
 				return
 			}
 
-			if !slices.EqualFunc(paths, visited, func(a Entry, b string) bool { return a.Path == b }) {
+			if !slices.EqualFunc(paths, visited, func(a testsuite.MemfsPrebuiltEntry, b string) bool { return a.Path == b }) {
 				t.Fatalf("visited(%v) doesn't match expected(%v)", visited, paths)
 				return
 			}
@@ -173,25 +161,13 @@ func Test_Readdir(t *testing.T) {
 
 func Test_OpenRead(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -337,12 +313,7 @@ func Test_Mkdir(t *testing.T) {
 
 func Test_Rmdir(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "remove", Mode: 0o700 | fs.ModeDir},
 			{Path: "remove/README.md", Mode: 0o700, Contents: "Hello world"},
 			{Path: "remove-all", Mode: 0o700 | fs.ModeDir},
@@ -350,14 +321,7 @@ func Test_Rmdir(t *testing.T) {
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -423,25 +387,13 @@ func Test_Rmdir(t *testing.T) {
 
 func Test_Unlink(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -501,12 +453,7 @@ func Test_Unlink(t *testing.T) {
 
 func Test_OpenWriteRead(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "file1", Mode: 0o700, Contents: "file1"},
 			{Path: "file2", Mode: 0o700, Contents: "file2"},
 			{Path: "file3", Mode: 0o700, Contents: "file3"},
@@ -520,14 +467,7 @@ func Test_OpenWriteRead(t *testing.T) {
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, "")
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -616,25 +556,13 @@ func Test_OpenWriteRead(t *testing.T) {
 
 func Test_Symlink(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -686,12 +614,6 @@ func Test_Symlink(t *testing.T) {
 
 func Test_Rename(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type PrebuiltEntry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-
 		type ExpectPath struct {
 			Path     string
 			Exists   bool
@@ -704,14 +626,14 @@ func Test_Rename(t *testing.T) {
 
 		type Test struct {
 			Name             string
-			Paths            []PrebuiltEntry
+			Paths            []testsuite.MemfsPrebuiltEntry
 			Oldname, Newname string
 			Expect           Expect
 		}
 		tests := []Test{
 			{
 				Name: "File",
-				Paths: []PrebuiltEntry{
+				Paths: []testsuite.MemfsPrebuiltEntry{
 					{Path: "directory", Mode: 0o700 | fs.ModeDir},
 					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
 				},
@@ -727,7 +649,7 @@ func Test_Rename(t *testing.T) {
 			},
 			{
 				Name: "Just rename",
-				Paths: []PrebuiltEntry{
+				Paths: []testsuite.MemfsPrebuiltEntry{
 					{Path: "directory", Mode: 0o700 | fs.ModeDir},
 					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
 				},
@@ -743,7 +665,7 @@ func Test_Rename(t *testing.T) {
 			},
 			{
 				Name: "Populated directory",
-				Paths: []PrebuiltEntry{
+				Paths: []testsuite.MemfsPrebuiltEntry{
 					{Path: "directory/sub1", Mode: 0o700 | fs.ModeDir},
 					{Path: "directory/sub2", Mode: 0o700 | fs.ModeDir},
 					{Path: "directory/sub3", Mode: 0o700 | fs.ModeDir},
@@ -767,7 +689,7 @@ func Test_Rename(t *testing.T) {
 			},
 			{
 				Name: "Different device",
-				Paths: []PrebuiltEntry{
+				Paths: []testsuite.MemfsPrebuiltEntry{
 					{Path: "directory", Mode: 0o700 | fs.ModeDir},
 					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
 				},
@@ -786,22 +708,7 @@ func Test_Rename(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.Name, func(t *testing.T) {
 				filesystem := memfs.New()
-				for _, entry := range test.Paths {
-					switch entry.Mode.Type() {
-					case 0:
-						err := filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-						if err != nil {
-							t.Fatalf("failed to create file: %v", err)
-						}
-
-					case fs.ModeDir:
-						err := filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-						if err != nil {
-							t.Fatalf("failed to create directory: %v", err)
-						}
-
-					}
-				}
+				testsuite.MemfsGenerate(t, filesystem, test.Paths)
 
 				i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 				if err != nil {
@@ -890,25 +797,13 @@ func Test_Rename(t *testing.T) {
 
 func Test_Statfs(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -942,26 +837,14 @@ func Test_Statfs(t *testing.T) {
 
 func Test_Mknod(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 			{Path: "README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				t.Logf("Skipping file: %s", entry.Path)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {
@@ -1028,25 +911,13 @@ func Test_Mknod(t *testing.T) {
 
 func Test_Hardlinks(t *testing.T) {
 	t.Run("Succeed", func(t *testing.T) {
-		type Entry struct {
-			Path     string
-			Mode     fs.FileMode
-			Contents string
-		}
-		paths := []Entry{
+		paths := []testsuite.MemfsPrebuiltEntry{
 			{Path: "root", Mode: 0o700 | fs.ModeDir},
 			{Path: "root/README.md", Mode: 0o700, Contents: "Hello world"},
 		}
 
 		filesystem := memfs.New()
-		for _, entry := range paths {
-			switch entry.Mode.Type() {
-			case 0:
-				filesystem.HelperCreateFile(entry.Path, entry.Mode, entry.Contents)
-			case fs.ModeDir:
-				filesystem.HelperMkdirAll(entry.Path, entry.Mode)
-			}
-		}
+		testsuite.MemfsGenerate(t, filesystem, paths)
 
 		i, err := fuse.Mount(t.TempDir(), fuse.Options{Name: "simple"}, fshandler.New(filesystem))
 		if err != nil {

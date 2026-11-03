@@ -503,30 +503,21 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 		return out, fuse.ErrorNotFound
 	}
 
-	fh := h.fileHandles.GetByFd(in.FileHandle)
-
 	var setattr Setattr
-	if fh == nil {
-		setattr.fromFuse(nil, in)
-		// Attempt to use the file system interface
-		setattrFS, ok := h.fs.(SetattrFS)
+	// There is no valid for filehandle field so use the fuse spec as reference.
+	// valid handles start from 1
+	if in.FileHandle != 0 {
+		fh := h.fileHandles.GetByFd(in.FileHandle)
+		if fh == nil {
+			return out, fuse.ErrorNotFound
+		}
+
+		setattrFile, ok := fh.Handle.(SetattrFile)
 		if !ok {
-			return out, fuse.ErrorNotSupported
+			goto useFS
 		}
 
-		info, err := setattrFS.Setattr(inode.Path, &setattr)
-		if err != nil {
-			return out, HErrorFromGoError(err)
-		}
-
-		return fuse.FuseAttrOut{
-			Attr: FuseAttrFromFileInfo(inode.NodeId, info),
-		}, nil
-	}
-
-	setattr.fromFuse(fh.Handle, in)
-	setattrFile, ok := fh.Handle.(SetattrFile)
-	if ok {
+		setattr.fromFuse(fh.Handle, in)
 		info, err := setattrFile.Setattr(&setattr)
 		if err != nil {
 			return out, HErrorFromGoError(err)
@@ -537,6 +528,8 @@ func (h *Handler) Setattr(ctx context.Context, logger *slog.Logger, header *fuse
 		}, nil
 	}
 
+useFS:
+	setattr.fromFuse(nil, in)
 	setattrFS, ok := h.fs.(SetattrFS)
 	if !ok {
 		return out, fuse.ErrorNotSupported
