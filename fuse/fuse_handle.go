@@ -96,6 +96,14 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 
 	switch header.Opcode {
 	default:
+		logger.WarnContext(ctx, "Unknown opcode")
+		hErr := f.ReplyErrno(header, unix.ENOSYS)
+		if hErr != nil {
+			logger.
+				With("error", hErr.Error()).
+				ErrorContext(ctx, "Failed to send kill error response")
+			return hErr
+		}
 		return fmt.Errorf("unknown opcode: %d", header.Opcode)
 	case FusebufTypeLOOKUP:
 		name, hErr := StringFromBytes(inBuffer)

@@ -218,19 +218,12 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 
 	fullpath := path.Clean(path.Join(inode.Path, name))
 
-	file, err := h.fs.Open(fullpath)
+	info, err := h.pathInfo(fullpath)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
-	defer file.Close()
 
 	targetInode := h.nodes.New(path.Join(inode.Path, name), true, false, inode)
-
-	info, err := file.Stat()
-	if err != nil {
-		return out, HErrorFromGoError(err)
-	}
-
 	return fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
 		Attr:   FuseAttrFromFileInfo(targetInode.NodeId, info),
