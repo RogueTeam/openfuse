@@ -194,7 +194,7 @@ func (f *FS) Mkdir(name string, mask, mode uint32) (err error) {
 			SetName: target,
 			Attributes: fshandler.Attributes{
 				Mode:  mode,
-				Mtime: uint64(time.Now().Unix()),
+				Mtime: uint64(time.Now().UnixMilli()),
 			},
 		},
 		Children: make(map[string]*Node),
@@ -305,7 +305,7 @@ func (f *FS) Symlink(oldname, newname string) (err error) {
 			SetName: target,
 			Attributes: fshandler.Attributes{
 				Mode:  0o777 | unix.S_IFLNK,
-				Mtime: uint64(time.Now().Unix()),
+				Mtime: uint64(time.Now().UnixMilli()),
 			},
 		},
 		SymlinkOldname: oldname,
@@ -409,7 +409,7 @@ func (f *FS) mknodFile(name string, _, umask, mode uint32) (err error) {
 			SetName: target,
 			Attributes: fshandler.Attributes{
 				Mode:  perm | (mode ^ 0o777) | unix.S_IFREG,
-				Mtime: uint64(time.Now().Unix()),
+				Mtime: uint64(time.Now().UnixMilli()),
 			},
 		},
 	}
@@ -440,7 +440,7 @@ func New() (filesystem *FS) {
 				SetName: "",
 				Attributes: fshandler.Attributes{
 					Mode:  0o700 | unix.S_IFDIR,
-					Mtime: uint64(time.Now().Unix()),
+					Mtime: uint64(time.Now().UnixMilli()),
 				},
 			},
 			Children: make(map[string]*Node),

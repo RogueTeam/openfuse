@@ -30,7 +30,7 @@ func (f *FS) HelperMkdirAll(name string, mode fs.FileMode) (err error) {
 				SetName: part,
 				Attributes: fshandler.Attributes{
 					Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFDIR,
-					Mtime: uint64(time.Now().Unix()),
+					Mtime: uint64(time.Now().UnixMilli()),
 				},
 			},
 			Children: make(map[string]*Node, 1),
@@ -64,7 +64,7 @@ func (f *FS) HelperCreateFile[T ~string | ~[]byte](name string, mode fs.FileMode
 			Attributes: fshandler.Attributes{
 				Size:  uint64(len(contents)),
 				Mode:  tables.RawModeFromFileMode(mode) | unix.S_IFREG,
-				Mtime: uint64(time.Now().Unix()),
+				Mtime: uint64(time.Now().UnixMilli()),
 			},
 		},
 		Contents: []byte(contents),
