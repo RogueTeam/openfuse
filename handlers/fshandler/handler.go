@@ -503,12 +503,17 @@ func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 		return fuse.ErrorNotSupported
 	}
 
-	inode := h.nodes.GetByIno(hdr.NodeId)
-	if inode == nil {
+	parent := h.nodes.GetByIno(hdr.NodeId)
+	if parent == nil {
 		return fuse.ErrorNotFound
 	}
 
-	fullpath := path.Clean(path.Join(inode.Path, name))
+	fullpath := path.Clean(path.Join(parent.Path, name))
+
+	target := h.nodes.GetByPath(fullpath)
+	if target == nil {
+		return fuse.ErrorNotFound
+	}
 
 	info, err := h.pathInfo(fullpath)
 	if err != nil {
@@ -519,7 +524,14 @@ func (h *Handler) Unlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 		return fuse.ErrorIsDirectory
 	}
 
-	return HErrorFromGoError(unlinkFS.Unlink(fullpath))
+	err = unlinkFS.Unlink(fullpath)
+	if err != nil {
+		return HErrorFromGoError(err)
+	}
+
+	delete(h.nodes.Paths, fullpath)
+	delete(parent.Children, target.NodeId)
+	return nil
 }
 
 func (h *Handler) Write(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseWriteIn, buffer []byte) (out fuse.FuseWriteOut, hErr *fuse.HError) {
@@ -639,12 +651,18 @@ func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.Fuse
 		return fuse.ErrorNotSupported
 	}
 
-	inode := h.nodes.GetByIno(hdr.NodeId)
-	if inode == nil {
+	parent := h.nodes.GetByIno(hdr.NodeId)
+	if parent == nil {
 		return fuse.ErrorNotFound
 	}
 
-	fullpath := path.Clean(path.Join(inode.Path, name))
+	fullpath := path.Clean(path.Join(parent.Path, name))
+
+	target := h.nodes.GetByPath(fullpath)
+	if target == nil {
+		return fuse.ErrorNotFound
+	}
+
 	info, err := h.pathInfo(fullpath)
 	if err != nil {
 		return HErrorFromGoError(err)
@@ -654,7 +672,15 @@ func (h *Handler) Rmdir(ctx context.Context, logger *slog.Logger, hdr *fuse.Fuse
 		return fuse.ErrorNotDirectory
 	}
 
-	return HErrorFromGoError(rmdirFS.Rmdir(fullpath))
+	err = rmdirFS.Rmdir(fullpath)
+	if err != nil {
+		return HErrorFromGoError(err)
+	}
+
+	delete(h.nodes.Paths, fullpath)
+	delete(parent.Children, target.NodeId)
+
+	return nil
 }
 
 func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseInHeader, name, oldname string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
