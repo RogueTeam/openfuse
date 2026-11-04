@@ -82,6 +82,11 @@ func (d *Directory) ReadDirAt(off uint64, n int) (dents []fs.DirEntry, err error
 	return dents, nil
 }
 
+func (d *Directory) ResetReadDir() (err error) {
+	d.Cursor = 0
+	return nil
+}
+
 func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
 		d.Info.Attributes.Mode = attr.Mode

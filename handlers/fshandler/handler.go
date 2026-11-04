@@ -198,6 +198,15 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 		}
 	}
 
+	if offset == 0 {
+		if resetRdFile, ok := fh.Handle.(ResetReadDirFile); ok {
+			err := resetRdFile.ResetReadDir()
+			if err != nil {
+				return out, HErrorFromGoError(err)
+			}
+		}
+	}
+
 	rdFile, ok := fh.Handle.(fs.ReadDirFile)
 	if !ok {
 		return out, &fuse.HError{
