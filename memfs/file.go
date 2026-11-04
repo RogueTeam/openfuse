@@ -70,9 +70,29 @@ func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 	if !f.AllowWrite {
 		return 0, fuse.ErrorBadFileDescriptor.GoError
 	}
+	if off < 0 {
+		return 0, fuse.ErrorInvalidValue
+	}
+	if len(b) == 0 {
+		return 0, nil
+	}
 
-	if off > int64(len(f.Contents)) {
-		return 0, io.EOF
+	// this means if offset is 1 and we only have a buffer of size 1 or less
+	// off cannot be used safely since it is out of bounds
+	// Example inputs:
+	// len(f.Contents) = 0
+	// off = 1
+	// out of bound index = f.Contents[1]
+	//
+	// Other scenario could be
+	// len(f.Contents) = 1
+	// off = 1
+	// Out of bound index = f.Contents[1]
+	if int64(len(f.Contents)) <= off {
+		// Save enough space to store up to offset index + the size of the input buffer
+		newBuffer := make([]byte, off+int64(len(b)))
+		copy(newBuffer, f.Contents)
+		f.Contents = newBuffer
 	}
 
 	sub := f.Contents[off:]
