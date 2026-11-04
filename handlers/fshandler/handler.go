@@ -204,6 +204,7 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 			if err != nil {
 				return out, HErrorFromGoError(err)
 			}
+			fh.ReaddirCache = nil
 		}
 	}
 
