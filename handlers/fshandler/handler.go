@@ -732,6 +732,16 @@ func (h *Handler) Rename(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 		return fuse.ErrorNotDirectory
 	}
 
+	// Verify target is not already part of the newParent
+	// This prevent infinite recursion for commands like mv directoryA directoryA/target
+	curr := target.Parent
+	for curr != nil {
+		if curr == target {
+			return fuse.ErrorExists
+		}
+		curr = curr.Parent
+	}
+
 	newpath := path.Clean(path.Join(newParent.Path, newname))
 
 	err = renameFS.Rename(oldpath, newpath)
