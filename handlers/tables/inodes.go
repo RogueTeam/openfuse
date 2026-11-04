@@ -55,11 +55,11 @@ func (t *InodeTable) ChangeDirectory(n *Inode, newname string) {
 }
 
 // Creates a new inode by its path or retrieves a existing
-func (t *InodeTable) New(path string, lookup, protected bool, parent *Inode) (inode *Inode) {
+func (t *InodeTable) New(path string, protected bool, parent *Inode) (inode *Inode) {
 	t.init()
 
 	defer func() {
-		if inode != nil && lookup {
+		if inode != nil {
 			inode.Viewers++
 		}
 	}()

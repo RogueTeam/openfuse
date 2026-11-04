@@ -181,7 +181,7 @@ insertCache:
 		entryPath := path.Join(fh.Inode.Path, entryName)
 		dirent := fuse.FuseDirent{
 			Header: fuse.FuseDirentHeader{
-				Ino:     h.nodes.New(entryPath, true, false, fh.Inode).NodeId,
+				Ino:     h.nodes.New(entryPath, false, fh.Inode).NodeId,
 				Off:     offset,
 				Namelen: uint32(len(entryName)),
 				Type:    tables.RawModeFromFileMode(info.Mode()),
@@ -223,7 +223,7 @@ func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.
 		return out, HErrorFromGoError(err)
 	}
 
-	targetInode := h.nodes.New(path.Join(inode.Path, name), true, false, inode)
+	targetInode := h.nodes.New(path.Join(inode.Path, name), false, inode)
 	return fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
 		Attr:   FuseAttrFromFileInfo(targetInode.NodeId, info),
@@ -403,7 +403,7 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, HErrorFromGoError(err)
 	}
 
-	newInode := h.nodes.New(fullpath, true, false, inode)
+	newInode := h.nodes.New(fullpath, false, inode)
 	out.NodeId = newInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(newInode.NodeId, dirInfo)
 
@@ -442,7 +442,7 @@ func (h *Handler) Mknod(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, HErrorFromGoError(err)
 	}
 
-	newInode := h.nodes.New(fullpath, true, false, inode)
+	newInode := h.nodes.New(fullpath, false, inode)
 	out.NodeId = newInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(newInode.NodeId, nodInfo)
 
@@ -641,7 +641,7 @@ func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fu
 		return out, HErrorFromGoError(err)
 	}
 
-	symlinkInode := h.nodes.New(fullpath, true, false, parent)
+	symlinkInode := h.nodes.New(fullpath, false, parent)
 	out.NodeId = symlinkInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(symlinkInode.NodeId, symlinkInfo)
 	return out, nil
@@ -788,7 +788,7 @@ func (h *Handler) Link(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseI
 		return out, HErrorFromGoError(err)
 	}
 
-	linkInode := h.nodes.New(fullpath, true, false, parent)
+	linkInode := h.nodes.New(fullpath, false, parent)
 	out.NodeId = linkInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(linkInode.NodeId, linkInfo)
 	return out, nil
@@ -801,6 +801,6 @@ func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,
 	}
-	h.nodes.New(".", true, true, nil)
+	h.nodes.New(".", true, nil)
 	return h
 }
