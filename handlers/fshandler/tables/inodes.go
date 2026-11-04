@@ -52,8 +52,10 @@ func (t *InodeTable) ChangeDirectory(newParent, n *Inode, newname string) {
 	oldNode, found := t.Paths[newname]
 	if found {
 		delete(t.Paths, newname)
-		delete(oldNode.Parent.Children, oldNode.NodeId)
-		oldNode.Parent = nil
+		if oldNode.Parent != nil {
+			delete(oldNode.Parent.Children, oldNode.NodeId)
+			oldNode.Parent = nil
+		}
 
 	}
 	if n.Parent != nil {
