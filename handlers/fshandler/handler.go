@@ -177,7 +177,7 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 							Ino:     h.nodes.New(fh.Inode, entryPath, false, false).NodeId,
 							Off:     1 + uint64(index) + offset,
 							Namelen: uint32(len(entryName)),
-							Type:    tables.RawModeFromFileMode(info.Mode()),
+							Type:    (tables.RawModeFromFileMode(info.Mode()) & unix.S_IFMT) >> 12,
 						},
 						Name: []byte(entryName),
 					}
@@ -243,7 +243,7 @@ checkOffset:
 				Ino:     h.nodes.New(fh.Inode, entryPath, false, false).NodeId,
 				Off:     1 + uint64(index) + offset,
 				Namelen: uint32(len(entryName)),
-				Type:    tables.RawModeFromFileMode(info.Mode()),
+				Type:    (tables.RawModeFromFileMode(info.Mode()) & unix.S_IFMT) >> 12,
 			},
 			Name: []byte(entryName),
 		}
