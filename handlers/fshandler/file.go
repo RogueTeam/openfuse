@@ -49,6 +49,7 @@ type ReadDirAtFile interface {
 // Any directory implementing this reset interface should
 // reset the internal cursor use by ReadDir() back to zero in order to force calls
 // from the beginning of the file
+// TODO: Verify seek isn't a better approach
 type ResetReadDirFile interface {
 	fs.File
 	ResetReadDir() (err error)
