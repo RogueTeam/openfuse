@@ -130,8 +130,16 @@ func (t *InodeTable) ForgetByIno(ino uint64, nlookup uint64) (hErr *fuse.HError)
 		return nil
 	}
 
+	// Only completely wipe those nodes with no child assigned
+	if len(inode.Children) > 0 {
+		return
+	}
+
 	// Delete references
 	delete(t.Nodes, ino)
 	delete(t.Paths, inode.Path)
+	if inode.Parent != nil {
+		delete(inode.Parent.Children, ino)
+	}
 	return nil
 }
