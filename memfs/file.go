@@ -15,7 +15,6 @@ import (
 type File struct {
 	AllowRead, AllowWrite bool
 	Closed                bool
-	Info                  FileInfo
 	Reference             *Node
 	Cursor                int
 	Contents              []byte
@@ -96,12 +95,8 @@ func (f *File) Sync() (err error) {
 	if !bytes.Equal(f.Contents, f.Reference.Contents) {
 		f.Reference.Contents = f.Contents
 
-		f.Info.Attributes.Size = uint64(len(f.Contents))
-		f.Info.Attributes.Mtime = uint64(time.Now().Unix())
-	}
-
-	if f.Info != f.Reference.Info {
-		f.Reference.Info = f.Info
+		f.Reference.Info.Attributes.Size = uint64(len(f.Contents))
+		f.Reference.Info.Attributes.Mtime = uint64(time.Now().Unix())
 	}
 	return
 }
@@ -128,30 +123,29 @@ func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 		if f.Cursor >= len(f.Contents) {
 			f.Cursor = len(f.Contents) - 1
 		}
-		f.Info.Attributes.Size = uint64(len(f.Contents))
+		f.Reference.Info.Attributes.Size = uint64(len(f.Contents))
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
-		f.Info.Attributes.Mode = attr.Mode
-
+		f.Reference.Info.Attributes.Mode = attr.Mode
 	}
 	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
-		f.Info.Attributes.Uid = attr.Uid
+		f.Reference.Info.Attributes.Uid = attr.Uid
 
 	}
 	if attr.Valid&fuse.FuseFattrGID == fuse.FuseFattrGID {
-		f.Info.Attributes.Gid = attr.Gid
+		f.Reference.Info.Attributes.Gid = attr.Gid
 	}
 	if attr.Valid&fuse.FuseFattrAtime == fuse.FuseFattrAtime {
-		f.Info.Attributes.Atime = attr.Atime
-		f.Info.Attributes.Atimesec = attr.Atimensec
+		f.Reference.Info.Attributes.Atime = attr.Atime
+		f.Reference.Info.Attributes.Atimesec = attr.Atimensec
 	}
 	if attr.Valid&fuse.FuseFattrMtime == fuse.FuseFattrMtime {
-		f.Info.Attributes.Mtime = attr.Mtime
-		f.Info.Attributes.Mtimesec = attr.Mtimensec
+		f.Reference.Info.Attributes.Mtime = attr.Mtime
+		f.Reference.Info.Attributes.Mtimesec = attr.Mtimensec
 	}
 
-	return &f.Info, nil
+	return &f.Reference.Info, nil
 }
 
 var _ fshandler.FullFile = (*File)(nil)

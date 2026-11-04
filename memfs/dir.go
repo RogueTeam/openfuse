@@ -15,7 +15,6 @@ import (
 type Directory struct {
 	Closed    bool
 	Cursor    int
-	Info      FileInfo
 	Reference *Node
 }
 
@@ -89,26 +88,26 @@ func (d *Directory) ResetReadDir() (err error) {
 
 func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
-		d.Info.Attributes.Mode = attr.Mode
+		d.Reference.Info.Attributes.Mode = attr.Mode
 
 	}
 	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
-		d.Info.Attributes.Uid = attr.Uid
+		d.Reference.Info.Attributes.Uid = attr.Uid
 
 	}
 	if attr.Valid&fuse.FuseFattrGID == fuse.FuseFattrGID {
-		d.Info.Attributes.Gid = attr.Gid
+		d.Reference.Info.Attributes.Gid = attr.Gid
 	}
 	if attr.Valid&fuse.FuseFattrAtime == fuse.FuseFattrAtime {
-		d.Info.Attributes.Atime = attr.Atime
-		d.Info.Attributes.Atimesec = attr.Atimensec
+		d.Reference.Info.Attributes.Atime = attr.Atime
+		d.Reference.Info.Attributes.Atimesec = attr.Atimensec
 	}
 	if attr.Valid&fuse.FuseFattrMtime == fuse.FuseFattrMtime {
-		d.Info.Attributes.Mtime = attr.Mtime
-		d.Info.Attributes.Mtimesec = attr.Mtimensec
+		d.Reference.Info.Attributes.Mtime = attr.Mtime
+		d.Reference.Info.Attributes.Mtimesec = attr.Mtimensec
 	}
 
-	return &d.Info, nil
+	return &d.Reference.Info, nil
 }
 
 var _ fshandler.FullDir = (*Directory)(nil)

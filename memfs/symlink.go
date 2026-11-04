@@ -9,7 +9,6 @@ import (
 )
 
 type Symlink struct {
-	Info      FileInfo
 	Reference *Node
 	Oldname   string
 }
@@ -17,7 +16,7 @@ type Symlink struct {
 var _ fs.File = (*Symlink)(nil)
 
 func (s *Symlink) Stat() (info fs.FileInfo, err error) {
-	return &s.Info, nil
+	return &s.Reference.Info, nil
 }
 
 func (s *Symlink) Read([]byte) (int, error) { return 0, fuse.ErrorNotSupported }

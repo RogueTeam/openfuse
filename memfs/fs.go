@@ -73,11 +73,11 @@ func (n *Node) openFile(flags uint32) (file *File) {
 	default:
 		return nil
 	case flags&unix.O_RDWR == unix.O_RDWR:
-		return &File{AllowRead: true, AllowWrite: true, Reference: n, Info: n.Info, Cursor: cursor, Contents: bytes.Clone(contents)}
+		return &File{AllowRead: true, AllowWrite: true, Reference: n, Cursor: cursor, Contents: bytes.Clone(contents)}
 	case flags&unix.O_WRONLY == unix.O_WRONLY:
-		return &File{AllowWrite: true, Reference: n, Info: n.Info, Cursor: cursor, Contents: bytes.Clone(contents)}
+		return &File{AllowWrite: true, Reference: n, Cursor: cursor, Contents: bytes.Clone(contents)}
 	case flags&unix.O_RDONLY == unix.O_RDONLY:
-		return &File{AllowRead: true, Reference: n, Info: n.Info, Cursor: cursor, Contents: contents}
+		return &File{AllowRead: true, Reference: n, Cursor: cursor, Contents: contents}
 	}
 }
 
@@ -85,7 +85,6 @@ func (n *Node) openSymlink() (symlink *Symlink) {
 	switch {
 	default:
 		return &Symlink{
-			Info:      n.Info,
 			Reference: n,
 			Oldname:   n.SymlinkOldname,
 		}
@@ -99,7 +98,7 @@ func (n *Node) Open(flags uint32) (file fs.File) {
 	case fs.ModeSymlink:
 		return n.openSymlink()
 	case fs.ModeDir:
-		return &Directory{Reference: n, Info: n.Info}
+		return &Directory{Reference: n}
 	default:
 		return nil
 	}
