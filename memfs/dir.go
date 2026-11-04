@@ -41,24 +41,34 @@ func (d *Directory) Close() (err error) {
 	return nil
 }
 
-func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
-	if d.Closed {
-		return nil, fs.ErrClosed
-	}
-
-	if d.Cursor >= len(d.Reference.Children) {
-		return nil, io.EOF
-	}
-
+func (d *Directory) prepareDirents() (dents []fs.DirEntry) {
 	dents = make([]fs.DirEntry, 0, len(d.Reference.Children))
 	for _, entry := range d.Reference.Children {
 		dents = append(dents, entry.DirEntry())
 	}
 	slices.SortFunc(dents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 
+	return dents
+}
+
+func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
+	if d.Closed {
+		return nil, fs.ErrClosed
+	}
+
+	if d.Cursor >= len(d.Reference.Children) {
+		if n > 0 {
+			return nil, io.EOF
+		}
+		return nil, nil
+	}
+
+	dents = d.prepareDirents()
+
 	dents = dents[d.Cursor:]
-	if n >= 0 {
-		dents = dents[:min(d.Cursor+n, len(dents))]
+	if n > 0 {
+		upperLimit := min(n, len(dents))
+		dents = dents[:upperLimit]
 	}
 	d.Cursor += len(dents)
 
@@ -74,15 +84,11 @@ func (d *Directory) ReadDirAt(off uint64, n int) (dents []fs.DirEntry, err error
 		return nil, io.EOF
 	}
 
-	dents = make([]fs.DirEntry, 0, len(d.Reference.Children))
-	for _, entry := range d.Reference.Children {
-		dents = append(dents, entry.DirEntry())
-	}
-	slices.SortFunc(dents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
-
+	dents = d.prepareDirents()
 	dents = dents[off:]
-	if n == -1 {
-		dents = dents[:min(off+uint64(n), uint64(len(dents)))]
+	if n > 0 {
+		upperLimit := min(n, len(dents))
+		dents = dents[:upperLimit]
 	}
 	return dents, nil
 }
