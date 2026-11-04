@@ -35,7 +35,7 @@ func (f *File) Read(b []byte) (n int, err error) {
 		return 0, fuse.ErrorBadFileDescriptor.GoError
 	}
 
-	n = copy(b[f.Cursor:], f.Contents)
+	n = copy(b, f.Contents[f.Cursor:])
 	f.Cursor += n
 	if n == 0 {
 		return 0, io.EOF
