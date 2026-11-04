@@ -93,7 +93,6 @@ func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err erro
 	}
 	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
 		d.Reference.Info.Attributes.Uid = attr.Uid
-
 	}
 	if attr.Valid&fuse.FuseFattrGID == fuse.FuseFattrGID {
 		d.Reference.Info.Attributes.Gid = attr.Gid
