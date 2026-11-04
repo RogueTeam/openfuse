@@ -6,7 +6,7 @@ import (
 	"io/fs"
 
 	"github.com/RogueTeam/openfuse/fuse"
-	"github.com/RogueTeam/openfuse/handlers/tables"
+	"github.com/RogueTeam/openfuse/handlers/fshandler/tables"
 )
 
 func FuseAttrFromFileInfo(ino uint64, info fs.FileInfo) (out fuse.FuseAttr) {

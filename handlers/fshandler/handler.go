@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/RogueTeam/openfuse/fuse"
-	"github.com/RogueTeam/openfuse/handlers/tables"
+	"github.com/RogueTeam/openfuse/handlers/fshandler/tables"
 	"golang.org/x/sys/unix"
 )
 

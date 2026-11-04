@@ -10,29 +10,29 @@ import (
 	"time"
 
 	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/handlers/tables"
+	"github.com/RogueTeam/openfuse/handlers/fshandler/tables"
 	"github.com/RogueTeam/openfuse/memfs"
 	"golang.org/x/sys/unix"
 )
 
-type MemfsPrebuiltEntry struct {
+type PrebuiltEntry struct {
 	Path     string
 	Mode     fs.FileMode
 	Contents string
 }
 
-func MemfsGenerate(tb testing.TB, f *memfs.FS, in []MemfsPrebuiltEntry) {
+func Generate(tb testing.TB, f *memfs.FS, in []PrebuiltEntry) {
 	for _, entry := range in {
 		switch entry.Mode.Type() {
 		case 0:
-			MemfsCreateFile(tb, f, entry.Path, entry.Mode, entry.Contents)
+			CreateFile(tb, f, entry.Path, entry.Mode, entry.Contents)
 		case fs.ModeDir:
-			MemfsMkdirAll(tb, f, entry.Path, entry.Mode)
+			MkdirAll(tb, f, entry.Path, entry.Mode)
 		}
 	}
 }
 
-func MemfsMkdirAll(tb testing.TB, f *memfs.FS, name string, mode fs.FileMode) {
+func MkdirAll(tb testing.TB, f *memfs.FS, name string, mode fs.FileMode) {
 	name = path.Clean(name)
 
 	parts := strings.Split(name, "/")
@@ -61,12 +61,12 @@ func MemfsMkdirAll(tb testing.TB, f *memfs.FS, name string, mode fs.FileMode) {
 	}
 }
 
-func MemfsCreateFile[T ~string | ~[]byte](tb testing.TB, f *memfs.FS, name string, mode fs.FileMode, contents T) {
+func CreateFile[T ~string | ~[]byte](tb testing.TB, f *memfs.FS, name string, mode fs.FileMode, contents T) {
 	name = path.Clean(name)
 
 	dir, filename := path.Split(name)
 
-	MemfsMkdirAll(tb, f, dir, 0o700|fs.ModeDir)
+	MkdirAll(tb, f, dir, 0o700|fs.ModeDir)
 
 	parentNode, err := f.Root.Find(dir)
 	if err != nil {
