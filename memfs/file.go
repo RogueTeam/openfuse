@@ -127,7 +127,8 @@ func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
-		f.Reference.Info.Attributes.Mode = attr.Mode
+		oldMode := f.Reference.Info.Attributes.Mode
+		f.Reference.Info.Attributes.Mode = (oldMode & ^uint32(0o7777)) | attr.Mode
 	}
 	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
 		f.Reference.Info.Attributes.Uid = attr.Uid

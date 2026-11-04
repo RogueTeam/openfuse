@@ -88,8 +88,8 @@ func (d *Directory) ResetReadDir() (err error) {
 
 func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
-		d.Reference.Info.Attributes.Mode = attr.Mode
-
+		oldMode := d.Reference.Info.Attributes.Mode
+		d.Reference.Info.Attributes.Mode = (oldMode & ^uint32(0o7777)) | attr.Mode
 	}
 	if attr.Valid&fuse.FuseFattrUID == fuse.FuseFattrUID {
 		d.Reference.Info.Attributes.Uid = attr.Uid
