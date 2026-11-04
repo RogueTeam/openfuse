@@ -689,6 +689,31 @@ func Test_Rename(t *testing.T) {
 				},
 			},
 			{
+				Name: "Recursion",
+				Paths: []memfstestsuite.PrebuiltEntry{
+					{Path: "directory/sub1", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/sub2", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/sub3", Mode: 0o700 | fs.ModeDir},
+					{Path: "directory/README.md", Mode: 0o700, Contents: "Hello world"},
+					{Path: "directory/sub1/README.md", Mode: 0o700, Contents: "Hello world"},
+					{Path: "directory/sub2/README.md", Mode: 0o700, Contents: "Hello world"},
+					{Path: "directory/sub3/README.md", Mode: 0o700, Contents: "Hello world"},
+				},
+				Oldname: "directory",
+				Newname: "directory/recursion",
+				Expect: Expect{
+					Fail: true,
+					Paths: []ExpectPath{
+						{Path: "directory/recursion", Exists: false},
+						{Path: "directory", Exists: true},
+						{Path: "directory/README.md", Exists: true, Contents: "Hello world"},
+						{Path: "directory/sub1/README.md", Exists: true, Contents: "Hello world"},
+						{Path: "directory/sub2/README.md", Exists: true, Contents: "Hello world"},
+						{Path: "directory/sub3/README.md", Exists: true, Contents: "Hello world"},
+					},
+				},
+			},
+			{
 				Name: "Different device",
 				Paths: []memfstestsuite.PrebuiltEntry{
 					{Path: "directory", Mode: 0o700 | fs.ModeDir},
