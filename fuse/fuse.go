@@ -122,7 +122,7 @@ func (o *Options) Defaults() {
 // Validate all the inputs
 func (o *Options) Validate() (err error) {
 	if o.Name == "" {
-		return fmt.Errorf("no options provided")
+		return fmt.Errorf("no name provided")
 	}
 	if o.MaxRead > FusebufMaxSize {
 		return fmt.Errorf("o.MaxRead can't be bigger than %d; got %d", FusebufMaxSize, o.MaxRead)
