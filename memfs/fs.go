@@ -422,7 +422,7 @@ func (f *FS) mknodFile(name string, _, umask, mode uint32) (err error) {
 }
 
 func (f *FS) Mknod(name string, rdev uint32, umask uint32, mode uint32) (err error) {
-	switch mode & fuse.S_IFModeType {
+	switch mode & unix.S_IFMT {
 	case unix.S_IFREG:
 		return f.mknodFile(name, rdev, umask, mode)
 	default:

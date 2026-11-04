@@ -4,18 +4,7 @@ package fuse
 
 import (
 	"unsafe"
-
-	"golang.org/x/sys/unix"
 )
-
-const S_IFModeType = unix.S_IFBLK |
-	unix.S_IFCHR |
-	unix.S_IFDIR |
-	unix.S_IFIFO |
-	unix.S_IFLNK |
-	unix.S_IFMT |
-	unix.S_IFREG |
-	unix.S_IFSOCK
 
 const (
 	FuseKernelVersion      = 7

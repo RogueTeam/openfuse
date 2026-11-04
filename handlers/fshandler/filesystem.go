@@ -30,7 +30,7 @@ type Attributes struct {
 
 func (a *Attributes) FileMode() (mode fs.FileMode) {
 	mode = fs.FileMode(a.Mode & 0o7777)
-	switch a.Mode & fuse.S_IFModeType {
+	switch a.Mode & unix.S_IFMT {
 	case unix.S_IFLNK:
 		mode |= fs.ModeSymlink
 	case unix.S_IFDIR:
