@@ -153,7 +153,6 @@ func (h *Handler) OpenDir(ctx context.Context, logger *slog.Logger, header *fuse
 
 func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, in *fuse.FuseReadIn) (out fuse.FuseDirEntries, hErr *fuse.HError) {
 	fh := h.fileHandles.GetByFd(in.FileHandle)
-
 	if fh == nil {
 		return out, fuse.ErrorNotFound
 	}
@@ -168,21 +167,32 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 
 	offset := in.Offset
 
-insertCache:
-	for len(fh.ReaddirCache) > 0 {
-		entry := fh.ReaddirCache[0]
+checkOffset:
+	if offset >= uint64(len(fh.ReaddirCache)) {
+		entries, err := rdFile.ReadDir(64)
+		switch {
+		case err == nil:
+			fh.ReaddirCache = append(fh.ReaddirCache, entries...)
+			goto checkOffset
+		case errors.Is(err, io.EOF):
+			return out, nil
+		default:
+			return out, HErrorFromGoError(err)
+		}
+	}
 
-		info, err := entry.Info()
+	for index, direntry := range fh.ReaddirCache[offset:] {
+		info, err := direntry.Info()
 		if err != nil {
 			return out, HErrorFromGoError(err)
 		}
 
-		entryName := strings.Trim(entry.Name(), "/")
+		entryName := strings.Trim(direntry.Name(), "/")
 		entryPath := path.Join(fh.Inode.Path, entryName)
 		dirent := fuse.FuseDirent{
 			Header: fuse.FuseDirentHeader{
 				Ino:     h.nodes.New(fh.Inode, entryPath, false, false).NodeId,
-				Off:     offset,
+				Off:     1 + uint64(index) + offset,
 				Namelen: uint32(len(entryName)),
 				Type:    tables.RawModeFromFileMode(info.Mode()),
 			},
@@ -194,20 +204,9 @@ insertCache:
 		}
 
 		out.Append(&dirent)
-		fh.ReaddirCache = fh.ReaddirCache[1:]
-		offset++
 	}
-
-	entries, err := rdFile.ReadDir(64)
-	switch {
-	case err == nil:
-		fh.ReaddirCache = entries
-		goto insertCache
-	case errors.Is(err, io.EOF):
-		return out, nil
-	default:
-		return out, HErrorFromGoError(err)
-	}
+	offset += uint64(len(fh.ReaddirCache[offset:]))
+	goto checkOffset
 }
 
 func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, name string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
