@@ -10,26 +10,25 @@ import (
 )
 
 type Dirent struct {
-	SetName string
-	SetInfo fs.FileInfo
+	Reference *Node
 }
 
 var _ fs.DirEntry = (*Dirent)(nil)
 
 func (e *Dirent) Name() string {
-	return e.SetName
+	return e.Reference.Info.SetName
 }
 
 func (e *Dirent) IsDir() bool {
-	return e.SetInfo.IsDir()
+	return e.Reference.Info.IsDir()
 }
 
 func (e *Dirent) Type() fs.FileMode {
-	return e.SetInfo.Mode()
+	return e.Reference.Info.Mode().Type()
 }
 
 func (e *Dirent) Info() (fs.FileInfo, error) {
-	return e.SetInfo, nil
+	return &e.Reference.Info, nil
 }
 
 type FileInfo struct {

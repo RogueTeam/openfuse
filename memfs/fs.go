@@ -51,8 +51,7 @@ func (n *Node) Statfs() (stats fuse.FuseStatfsOut) {
 
 func (n *Node) DirEntry() (e fs.DirEntry) {
 	return &Dirent{
-		SetName: n.Info.SetName,
-		SetInfo: &n.Info,
+		Reference: n,
 	}
 }
 
