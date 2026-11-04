@@ -407,12 +407,12 @@ func (f *FS) mknodFile(name string, _, umask, mode uint32) (err error) {
 		return fuse.ErrorExists
 	}
 
-	perm := (mode & 0o777) ^ umask
+	perm := (mode & 0o777) & ^umask
 	parent.Children[target] = &Node{
 		Info: FileInfo{
 			SetName: target,
 			Attributes: fshandler.Attributes{
-				Mode:  perm | (mode ^ 0o777) | unix.S_IFREG,
+				Mode:  perm | (mode & ^uint32(0o777)) | unix.S_IFREG,
 				Mtime: uint64(time.Now().Unix()),
 			},
 		},
