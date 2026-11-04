@@ -181,7 +181,7 @@ insertCache:
 		entryPath := path.Join(fh.Inode.Path, entryName)
 		dirent := fuse.FuseDirent{
 			Header: fuse.FuseDirentHeader{
-				Ino:     h.nodes.New(entryPath, false).NodeId,
+				Ino:     h.nodes.New(fh.Inode, entryPath, false).NodeId,
 				Off:     offset,
 				Namelen: uint32(len(entryName)),
 				Type:    tables.RawModeFromFileMode(info.Mode()),
@@ -211,19 +211,19 @@ insertCache:
 }
 
 func (h *Handler) Lookup(ctx context.Context, logger *slog.Logger, header *fuse.FuseInHeader, name string) (out fuse.FuseEntryOut, hErr *fuse.HError) {
-	inode := h.nodes.GetByIno(header.NodeId)
-	if inode == nil {
+	parent := h.nodes.GetByIno(header.NodeId)
+	if parent == nil {
 		return out, fuse.ErrorNotFound
 	}
 
-	fullpath := path.Clean(path.Join(inode.Path, name))
+	fullpath := path.Clean(path.Join(parent.Path, name))
 
 	info, err := h.pathInfo(fullpath)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
 
-	targetInode := h.nodes.New(path.Join(inode.Path, name), false)
+	targetInode := h.nodes.New(parent, path.Join(parent.Path, name), false)
 	return fuse.FuseEntryOut{
 		NodeId: targetInode.NodeId,
 		Attr:   FuseAttrFromFileInfo(targetInode.NodeId, info),
@@ -377,12 +377,12 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, fuse.ErrorNotSupported
 	}
 
-	inode := h.nodes.GetByIno(header.NodeId)
-	if inode == nil {
+	parent := h.nodes.GetByIno(header.NodeId)
+	if parent == nil {
 		return out, fuse.ErrorNotFound
 	}
 
-	info, err := h.pathInfo(inode.Path)
+	info, err := h.pathInfo(parent.Path)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
@@ -391,7 +391,7 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, fuse.ErrorNotDirectory
 	}
 
-	fullpath := path.Clean(path.Join(inode.Path, name))
+	fullpath := path.Clean(path.Join(parent.Path, name))
 
 	err = mkdirFs.Mkdir(fullpath, in.Mask, in.Mode)
 	if err != nil {
@@ -403,7 +403,7 @@ func (h *Handler) Mkdir(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, HErrorFromGoError(err)
 	}
 
-	newInode := h.nodes.New(fullpath, false)
+	newInode := h.nodes.New(parent, fullpath, false)
 	out.NodeId = newInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(newInode.NodeId, dirInfo)
 
@@ -416,12 +416,12 @@ func (h *Handler) Mknod(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, fuse.ErrorNotSupported
 	}
 
-	inode := h.nodes.GetByIno(header.NodeId)
-	if inode == nil {
+	parent := h.nodes.GetByIno(header.NodeId)
+	if parent == nil {
 		return out, fuse.ErrorNotFound
 	}
 
-	parentInfo, err := h.pathInfo(inode.Path)
+	parentInfo, err := h.pathInfo(parent.Path)
 	if err != nil {
 		return out, HErrorFromGoError(err)
 	}
@@ -430,7 +430,7 @@ func (h *Handler) Mknod(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, fuse.ErrorNotDirectory
 	}
 
-	fullpath := path.Clean(path.Join(inode.Path, name))
+	fullpath := path.Clean(path.Join(parent.Path, name))
 
 	err = mknodFs.Mknod(fullpath, in.Rdev, in.Umask, in.Mode)
 	if err != nil {
@@ -442,7 +442,7 @@ func (h *Handler) Mknod(ctx context.Context, logger *slog.Logger, header *fuse.F
 		return out, HErrorFromGoError(err)
 	}
 
-	newInode := h.nodes.New(fullpath, false)
+	newInode := h.nodes.New(parent, fullpath, false)
 	out.NodeId = newInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(newInode.NodeId, nodInfo)
 
@@ -641,7 +641,7 @@ func (h *Handler) Symlink(ctx context.Context, logger *slog.Logger, hdr *fuse.Fu
 		return out, HErrorFromGoError(err)
 	}
 
-	symlinkInode := h.nodes.New(fullpath, false)
+	symlinkInode := h.nodes.New(parent, fullpath, false)
 	out.NodeId = symlinkInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(symlinkInode.NodeId, symlinkInfo)
 	return out, nil
@@ -739,7 +739,7 @@ func (h *Handler) Rename(ctx context.Context, logger *slog.Logger, hdr *fuse.Fus
 		return HErrorFromGoError(err)
 	}
 
-	h.nodes.ChangeDirectory(target, newpath)
+	h.nodes.ChangeDirectory(newParent, target, newpath)
 	return nil
 }
 
@@ -788,7 +788,8 @@ func (h *Handler) Link(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseI
 		return out, HErrorFromGoError(err)
 	}
 
-	linkInode := h.nodes.New(fullpath, false)
+	// TODO: This is incorrect - Hardlinks doesn't create new inodes
+	linkInode := h.nodes.New(parent, fullpath, false)
 	out.NodeId = linkInode.NodeId
 	out.Attr = FuseAttrFromFileInfo(linkInode.NodeId, linkInfo)
 	return out, nil
@@ -801,6 +802,6 @@ func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,
 	}
-	h.nodes.New(".", true)
+	h.nodes.New(nil, ".", true)
 	return h
 }

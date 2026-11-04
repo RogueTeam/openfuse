@@ -3,8 +3,6 @@
 package tables
 
 import (
-	"strings"
-
 	"github.com/RogueTeam/openfuse/fuse"
 )
 
@@ -37,28 +35,33 @@ func (t *InodeTable) init() {
 	}
 }
 
-// Changes the directory of this node and all its children
-func (t *InodeTable) ChangeDirectory(n *Inode, newname string) {
-	delete(t.Paths, n.Path)
+func (t *InodeTable) changeChildrenDirectory(n *Inode, olddir, newdir string) {
 
-	oldname := n.Path
-	n.Path = newname
-	t.Paths[n.Path] = n
-
-	// This is slow but is the only hack I could think fast
-	// TODO: Implement a proper lookup algorithm
-	// Reference parent and children somehow
-	for name, entry := range t.Paths {
-		if strings.HasPrefix(name, oldname) {
-			delete(t.Paths, name)
-			entry.Path = newname + name[len(oldname):]
-			t.Paths[entry.Path] = entry
-		}
+	for _, child := range n.Children {
+		oldchildname := child.Path
+		child.Path = newdir + child.Path[len(olddir):]
+		delete(t.Paths, oldchildname)
+		t.Paths[child.Path] = child
 	}
 }
 
+// Changes the directory of this node and all its children
+func (t *InodeTable) ChangeDirectory(newParent, n *Inode, newname string) {
+	delete(t.Paths, n.Path)
+	if n.Parent != nil {
+		delete(n.Parent.Children, n.NodeId)
+	}
+
+	oldname := n.Path
+	n.Path = newname
+	n.Parent = newParent
+	t.Paths[n.Path] = n
+
+	t.changeChildrenDirectory(n, oldname, newname)
+}
+
 // Creates a new inode by its path or retrieves a existing
-func (t *InodeTable) New(path string, protected bool) (inode *Inode) {
+func (t *InodeTable) New(parent *Inode, path string, protected bool) (inode *Inode) {
 	t.init()
 
 	defer func() {
@@ -77,10 +80,15 @@ func (t *InodeTable) New(path string, protected bool) (inode *Inode) {
 		NodeId:    t.next,
 		Protected: protected,
 		Path:      path,
+		Parent:    parent,
+		Children:  make(map[uint64]*Inode),
 	}
 
 	t.Paths[path] = inode
 	t.Nodes[inode.NodeId] = inode
+	if parent != nil {
+		parent.Children[t.next] = inode
+	}
 	return inode
 }
 
@@ -96,16 +104,6 @@ func (t *InodeTable) GetByIno(ino uint64) (inode *Inode) {
 
 	inode, _ = t.Nodes[ino]
 	return inode
-}
-
-func (t *InodeTable) ForgetByPath(path string, nlookup uint64) {
-	t.init()
-
-	inode, found := t.Paths[path]
-	if !found {
-		return
-	}
-	t.ForgetByIno(inode.NodeId, nlookup)
 }
 
 func (t *InodeTable) ForgetByIno(ino uint64, nlookup uint64) (hErr *fuse.HError) {
