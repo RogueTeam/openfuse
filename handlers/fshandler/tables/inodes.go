@@ -49,6 +49,13 @@ func (t *InodeTable) changeChildrenDirectory(n *Inode, olddir, newdir string) {
 // Changes the directory of this node and all its children
 func (t *InodeTable) ChangeDirectory(newParent, n *Inode, newname string) {
 	delete(t.Paths, n.Path)
+	oldNode, found := t.Paths[newname]
+	if found {
+		delete(t.Paths, newname)
+		delete(oldNode.Parent.Children, oldNode.NodeId)
+		oldNode.Parent = nil
+
+	}
 	if n.Parent != nil {
 		delete(n.Parent.Children, n.NodeId)
 	}
@@ -137,7 +144,10 @@ func (t *InodeTable) ForgetByIno(ino uint64, nlookup uint64) (hErr *fuse.HError)
 
 	// Delete references
 	delete(t.Nodes, ino)
-	delete(t.Paths, inode.Path)
+	byPath, found := t.Paths[inode.Path]
+	if found && byPath.NodeId == ino {
+		delete(t.Paths, inode.Path)
+	}
 	if inode.Parent != nil {
 		delete(inode.Parent.Children, ino)
 	}
