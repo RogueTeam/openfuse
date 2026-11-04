@@ -16,6 +16,9 @@ type Inode struct {
 	Protected bool
 	// Path of the node
 	Path string
+
+	Parent   *Inode
+	Children map[uint64]*Inode
 }
 
 type InodeTable struct {
@@ -55,7 +58,7 @@ func (t *InodeTable) ChangeDirectory(n *Inode, newname string) {
 }
 
 // Creates a new inode by its path or retrieves a existing
-func (t *InodeTable) New(path string, protected bool, parent *Inode) (inode *Inode) {
+func (t *InodeTable) New(path string, protected bool) (inode *Inode) {
 	t.init()
 
 	defer func() {
@@ -78,7 +81,6 @@ func (t *InodeTable) New(path string, protected bool, parent *Inode) (inode *Ino
 
 	t.Paths[path] = inode
 	t.Nodes[inode.NodeId] = inode
-
 	return inode
 }
 
