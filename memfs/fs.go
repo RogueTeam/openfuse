@@ -329,7 +329,7 @@ func (f *FS) Rename(oldpath, newpath string) (err error) {
 	oldDir, oldName := path.Split(oldpath)
 	newDir, newName := path.Split(newpath)
 
-	if strings.HasPrefix(newDir+"/", oldpath) {
+	if oldpath == newpath || strings.HasPrefix(newDir, oldpath+"/") {
 		return fuse.ErrorExists
 	}
 
