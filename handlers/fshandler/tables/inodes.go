@@ -36,12 +36,13 @@ func (t *InodeTable) init() {
 }
 
 func (t *InodeTable) changeChildrenDirectory(n *Inode, olddir, newdir string) {
-
 	for _, child := range n.Children {
 		oldchildname := child.Path
 		child.Path = newdir + child.Path[len(olddir):]
 		delete(t.Paths, oldchildname)
 		t.Paths[child.Path] = child
+
+		t.changeChildrenDirectory(child, olddir, newdir)
 	}
 }
 
@@ -56,16 +57,17 @@ func (t *InodeTable) ChangeDirectory(newParent, n *Inode, newname string) {
 	n.Path = newname
 	n.Parent = newParent
 	t.Paths[n.Path] = n
+	newParent.Children[n.NodeId] = n
 
 	t.changeChildrenDirectory(n, oldname, newname)
 }
 
 // Creates a new inode by its path or retrieves a existing
-func (t *InodeTable) New(parent *Inode, path string, protected bool) (inode *Inode) {
+func (t *InodeTable) New(parent *Inode, path string, lookup, protected bool) (inode *Inode) {
 	t.init()
 
 	defer func() {
-		if inode != nil {
+		if inode != nil && lookup {
 			inode.Viewers++
 		}
 	}()
