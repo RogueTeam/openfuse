@@ -882,7 +882,7 @@ func (h *Handler) Link(ctx context.Context, logger *slog.Logger, hdr *fuse.FuseI
 // Provided filesystem may implement FullFS or a subset of it in order to support non Read-Only filesystems.
 // Files and directories may need to implement FullFile or FullDir accordingly in order to support all file and directory operations.
 // ExtFileInfo can be used to return more detailed attributes to the fuse device.
-// fs.FileInfo can also return *unix.Stat_t with the Sys() method in order to map that to what the kernel ask for.
+// fs.FileInfo can also return *syscall.Stat_t with the Sys() method in order to map that to what the kernel ask for.
 func New(f fs.FS) (h *Handler) {
 	h = &Handler{
 		fs: f,
