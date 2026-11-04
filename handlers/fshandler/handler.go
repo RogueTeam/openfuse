@@ -163,7 +163,7 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 		for {
 			direntries, err := rdatFile.ReadDirAt(offset, 64)
 			switch {
-			case err == nil:
+			case len(direntries) > 0 && err == nil:
 				for index, direntry := range direntries {
 					info, err := direntry.Info()
 					if err != nil {
@@ -190,7 +190,7 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 				}
 
 				offset += uint64(len(direntries))
-			case errors.Is(err, io.EOF):
+			case (err == nil && len(direntries) == 0) || errors.Is(err, io.EOF):
 				return out, nil
 			default:
 				return out, HErrorFromGoError(err)
