@@ -63,6 +63,25 @@ func (d *Directory) ReadDir(n int) (dents []fs.DirEntry, err error) {
 	return dents, nil
 }
 
+func (d *Directory) ReadDirAt(off uint64, n int) (dents []fs.DirEntry, err error) {
+	if d.Closed {
+		return nil, fs.ErrClosed
+	}
+
+	if off >= uint64(len(d.Reference.Children)) {
+		return nil, io.EOF
+	}
+
+	dents = make([]fs.DirEntry, 0, len(d.Reference.Children))
+	for _, entry := range d.Reference.Children {
+		dents = append(dents, entry.DirEntry())
+	}
+	slices.SortFunc(dents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+
+	dents = dents[off:min(off+uint64(n), uint64(len(dents)))]
+	return dents, nil
+}
+
 func (d *Directory) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
 		d.Info.Attributes.Mode = attr.Mode

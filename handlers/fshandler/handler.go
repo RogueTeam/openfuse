@@ -157,6 +157,47 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 		return out, fuse.ErrorNotFound
 	}
 
+	offset := in.Offset
+
+	if rdatFile, ok := fh.Handle.(ReadDirAtFile); ok {
+		for {
+			direntries, err := rdatFile.ReadDirAt(offset, 64)
+			switch {
+			case err == nil:
+				for index, direntry := range direntries {
+					info, err := direntry.Info()
+					if err != nil {
+						return out, HErrorFromGoError(err)
+					}
+
+					entryName := strings.Trim(direntry.Name(), "/")
+					entryPath := path.Join(fh.Inode.Path, entryName)
+					dirent := fuse.FuseDirent{
+						Header: fuse.FuseDirentHeader{
+							Ino:     h.nodes.New(fh.Inode, entryPath, false, false).NodeId,
+							Off:     1 + uint64(index) + offset,
+							Namelen: uint32(len(entryName)),
+							Type:    tables.RawModeFromFileMode(info.Mode()),
+						},
+						Name: []byte(entryName),
+					}
+
+					if out.Len()+dirent.Size() > int(in.Size) {
+						return out, nil
+					}
+
+					out.Append(&dirent)
+				}
+
+				offset += uint64(len(direntries))
+			case errors.Is(err, io.EOF):
+				return out, nil
+			default:
+				return out, HErrorFromGoError(err)
+			}
+		}
+	}
+
 	rdFile, ok := fh.Handle.(fs.ReadDirFile)
 	if !ok {
 		return out, &fuse.HError{
@@ -164,8 +205,6 @@ func (h *Handler) Readdir(ctx context.Context, logger *slog.Logger, header *fuse
 			GoError: fmt.Errorf("handle is not a directory"),
 		}
 	}
-
-	offset := in.Offset
 
 checkOffset:
 	if offset >= uint64(len(fh.ReaddirCache)) {
