@@ -391,7 +391,10 @@ func GenericScripts(tb testing.TB) (tests []Test) {
 			return fmt.Errorf("failed to parse script: %s: %w", path, err)
 		}
 
-		tests = append(tests, newTests...)
+		for _, test := range newTests {
+			test.Name = path + ":" + test.Name
+			tests = append(tests, test)
+		}
 		return nil
 	})
 	if err != nil {
