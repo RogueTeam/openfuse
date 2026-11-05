@@ -32,7 +32,7 @@ func Test_Fsscript(t *testing.T) {
 				}
 			})
 
-			logger := testsuite.Logger(t, slog.LevelDebug)
+			logger := testsuite.Logger(t, slog.LevelError)
 			go func() {
 				i.Serve(t.Context(), logger)
 				i.Close()

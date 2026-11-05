@@ -72,7 +72,7 @@ func (n *Node) openFile(flags uint32) (file *File) {
 	switch {
 	default:
 		return nil
-	case flags&unix.O_RDWR == unix.O_RDWR:
+	case flags&unix.O_RDWR == unix.O_RDWR || (flags&unix.O_WRONLY == unix.O_WRONLY && flags&unix.O_RDONLY == unix.O_RDONLY):
 		return &File{AllowRead: true, AllowWrite: true, Reference: n, Cursor: cursor, Contents: bytes.Clone(contents)}
 	case flags&unix.O_WRONLY == unix.O_WRONLY:
 		return &File{AllowWrite: true, Reference: n, Cursor: cursor, Contents: bytes.Clone(contents)}

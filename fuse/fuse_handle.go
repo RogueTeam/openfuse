@@ -116,9 +116,17 @@ func (f *Fuse[T]) handle(ctx context.Context, logger *slog.Logger, b []byte) (er
 
 		out, hErr := f.Handler.Lookup(ctx, logger, header, name)
 		if hErr != nil {
-			logger.
-				With("error", hErr.Error()).
-				ErrorContext(ctx, "Handler Error")
+			switch hErr.getErrno() {
+			case unix.EEXIST:
+				logger.
+					With("error", hErr.Error()).
+					ErrorContext(ctx, "Handler Error")
+			default:
+				logger.
+					With("error", hErr.Error()).
+					WarnContext(ctx, "Handler Error")
+			}
+
 			return f.ReplyErrno(header, hErr.getErrno())
 		}
 

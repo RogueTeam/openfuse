@@ -232,7 +232,7 @@ func (a *AppendFile) GetLine() (line int)    { return a.Line }
 func (a *AppendFile) Run(base string) (err error) {
 	filepath := path.Clean(path.Join(base, a.File))
 
-	file, err := os.OpenFile(filepath, os.O_WRONLY, fs.ModeAppend)
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_APPEND, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
