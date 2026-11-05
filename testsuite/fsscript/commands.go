@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -64,6 +65,29 @@ func (r *Readdir) Run(base string) (err error) {
 		if expect != entry.Name() {
 			return fmt.Errorf("element %d doesn't match. expect(%s) != received(%s)", index, expect, entry.Name())
 		}
+	}
+
+	return nil
+}
+
+type ReaddirCount struct {
+	Line      int
+	Directory string
+	Count     int64
+}
+
+func (r *ReaddirCount) GetName() (name string) { return "lscount" }
+func (r *ReaddirCount) GetLine() (line int)    { return r.Line }
+func (r *ReaddirCount) Run(base string) (err error) {
+	dir := path.Clean(path.Join(base, r.Directory))
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	if int64(len(entries)) > r.Count {
+		return fmt.Errorf("expecting %d but received %d", r.Count, len(entries))
 	}
 
 	return nil
@@ -186,6 +210,35 @@ func (r *Remove) Run(base string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to remove path: %w", err)
 	}
+	return nil
+}
+
+type RemoveCount struct {
+	Line  int
+	Path  string
+	Count int64
+}
+
+func (r *RemoveCount) GetName() (name string) { return "rmcount" }
+func (r *RemoveCount) GetLine() (line int)    { return r.Line }
+func (r *RemoveCount) Run(base string) (err error) {
+	fullpath := path.Clean(path.Join(base, r.Path))
+
+	entries, err := os.ReadDir(fullpath)
+	if err != nil {
+		return fmt.Errorf("failed to read location: %w", err)
+	}
+
+	if int64(len(entries)) < r.Count {
+		return fmt.Errorf("not enough entries to remove: expect(%d) != received(%d)", r.Count, len(entries))
+	}
+	for _, entry := range entries[:r.Count] {
+		err = os.Remove(path.Join(fullpath, entry.Name()))
+		if err != nil {
+			return fmt.Errorf("failed to remove path: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -360,5 +413,27 @@ func (r *ReadAtFile) Run(base string) (err error) {
 		return fmt.Errorf("contents doesn't match: expect(%s) != received(%s)", expect, received)
 	}
 
+	return nil
+}
+
+type TouchnFile struct {
+	Line       int
+	Prefix     string
+	Permission fs.FileMode
+	Count      int64
+}
+
+func (t *TouchnFile) GetName() (name string) { return "touchn" }
+func (t *TouchnFile) GetLine() (line int)    { return t.Line }
+func (t *TouchnFile) Run(base string) (err error) {
+	prefix := path.Clean(path.Join(base, t.Prefix))
+	for n := range t.Count {
+		filename := prefix + strconv.FormatInt(n, 10)
+
+		err := os.WriteFile(filename, []byte(filename), t.Permission)
+		if err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
+		}
+	}
 	return nil
 }

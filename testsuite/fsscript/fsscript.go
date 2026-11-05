@@ -56,7 +56,7 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 
 		directory := args[0]
 		rawPermission := args[1]
-		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		permission, err := strconv.ParseUint(rawPermission, 8, 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
 		}
@@ -82,6 +82,24 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Line:      line,
 			Directory: directory,
 			Expect:    expect,
+		})
+		return nil
+	case "lscount":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: lscount DIRECTORY COUNT")
+		}
+
+		directory := args[0]
+		rawCount := args[1]
+		count, err := strconv.ParseInt(rawCount, 10, 32)
+		if err != nil {
+			return fmt.Errorf("failed to parse count: %s: %w", rawCount, err)
+		}
+
+		t.Commands = append(t.Commands, &ReaddirCount{
+			Line:      line,
+			Directory: directory,
+			Count:     count,
 		})
 		return nil
 	case "file":
@@ -189,6 +207,24 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 		t.Commands = append(t.Commands, &Remove{
 			Line: line,
 			Path: filepath,
+		})
+		return nil
+	case "rmcount":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: rmcount DIRPATH COUNT")
+		}
+
+		filepath := args[0]
+		rawCount := args[1]
+		count, err := strconv.ParseInt(rawCount, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse count: %s: %w", rawCount, err)
+		}
+
+		t.Commands = append(t.Commands, &RemoveCount{
+			Line:  line,
+			Path:  filepath,
+			Count: count,
 		})
 		return nil
 	case "mv":
@@ -317,6 +353,32 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Offset:   offset,
 			Size:     size,
 			Contents: contents,
+		})
+		return nil
+	case "touchn":
+		if len(args) != 3 {
+			return fmt.Errorf("expecting: touchn PREFIX PERMISSION COUNT")
+		}
+
+		prefix := args[0]
+		rawPermission := args[1]
+		rawCount := args[2]
+
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		count, err := strconv.ParseInt(rawCount, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse count: %s: %w", rawCount, err)
+		}
+
+		t.Commands = append(t.Commands, &TouchnFile{
+			Line:       line,
+			Prefix:     prefix,
+			Permission: fs.FileMode(permission),
+			Count:      count,
 		})
 		return nil
 	default:
