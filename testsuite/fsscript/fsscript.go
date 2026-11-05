@@ -273,6 +273,24 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Contents: contents,
 		})
 		return nil
+	case "randomfile":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: randomfile FILE SIZE")
+		}
+
+		filename := args[0]
+		rawSize := args[1]
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse size: %w", err)
+		}
+
+		t.Commands = append(t.Commands, &RandomFile{
+			Line: line,
+			File: filename,
+			Size: size,
+		})
+		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}

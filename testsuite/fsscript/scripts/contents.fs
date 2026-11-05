@@ -15,6 +15,10 @@ append readme World
 append readme !!
 cat readme HelloWorld!!
 
+= Large multi-chunk file
+randomfile readme 204800
+size readme 204800
+
 = Chmod a directory
 mkdir secrets 700
 chmod secrets 777

@@ -3,7 +3,9 @@
 package fsscript
 
 import (
+	"crypto/rand"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -293,6 +295,31 @@ func (w *WriteAtFile) Run(base string) (err error) {
 	_, err = file.WriteAt([]byte(contentsS), w.Offset)
 	if err != nil {
 		return fmt.Errorf("failed to writeat file: %w", err)
+	}
+
+	return nil
+}
+
+type RandomFile struct {
+	Line int
+	File string
+	Size int64
+}
+
+func (r *RandomFile) GetName() (name string) { return "randomfile" }
+func (r *RandomFile) GetLine() (line int)    { return r.Line }
+func (r *RandomFile) Run(base string) (err error) {
+	filepath := path.Clean(path.Join(base, r.File))
+
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, io.LimitReader(rand.Reader, r.Size))
+	if err != nil {
+		return fmt.Errorf("failed to fill with random data: %w", err)
 	}
 
 	return nil
