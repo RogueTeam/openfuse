@@ -291,6 +291,34 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Size: size,
 		})
 		return nil
+	case "readat":
+		if len(args) < 3 {
+			return fmt.Errorf("expecting: readat FILE OFFSET SIZE CONTENTS")
+		}
+
+		filename := args[0]
+		rawOffset := args[1]
+		rawSize := args[2]
+		contents := args[3:]
+
+		offset, err := strconv.ParseInt(rawOffset, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse offset: %w", err)
+		}
+
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse size: %w", err)
+		}
+
+		t.Commands = append(t.Commands, &ReadAtFile{
+			Line:     line,
+			File:     filename,
+			Offset:   offset,
+			Size:     size,
+			Contents: contents,
+		})
+		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}

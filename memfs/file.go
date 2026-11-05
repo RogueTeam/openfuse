@@ -17,6 +17,7 @@ type File struct {
 	Closed                bool
 	Reference             *Node
 	Cursor                int
+	Modified              bool
 	Contents              []byte
 }
 
@@ -104,6 +105,10 @@ func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 	}
 
 	n = copy(sub, b)
+	if !f.Modified {
+		f.Modified = true
+	}
+
 	return n, nil
 }
 
@@ -116,7 +121,7 @@ func (f *File) Sync() (err error) {
 		return nil
 	}
 
-	if !bytes.Equal(f.Contents, f.Reference.Contents) {
+	if f.Modified && !bytes.Equal(f.Contents, f.Reference.Contents) {
 		f.Reference.Contents = f.Contents
 
 		f.Reference.Info.Attributes.Size = uint64(len(f.Contents))
@@ -148,6 +153,7 @@ func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 			f.Cursor = len(f.Contents) - 1
 		}
 		f.Reference.Info.Attributes.Size = uint64(len(f.Contents))
+		f.Reference.Contents = f.Contents
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {

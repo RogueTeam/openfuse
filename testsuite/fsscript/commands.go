@@ -3,7 +3,9 @@
 package fsscript
 
 import (
+	"bytes"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -320,6 +322,42 @@ func (r *RandomFile) Run(base string) (err error) {
 	_, err = io.Copy(file, io.LimitReader(rand.Reader, r.Size))
 	if err != nil {
 		return fmt.Errorf("failed to fill with random data: %w", err)
+	}
+
+	return nil
+}
+
+type ReadAtFile struct {
+	Line     int
+	File     string
+	Offset   int64
+	Size     int64
+	Contents []string
+}
+
+func (r *ReadAtFile) GetName() (name string) { return "readat" }
+func (r *ReadAtFile) GetLine() (line int)    { return r.Line }
+func (r *ReadAtFile) Run(base string) (err error) {
+	filepath := path.Clean(path.Join(base, r.File))
+
+	file, err := os.OpenFile(filepath, os.O_RDONLY, 0)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	b := make([]byte, r.Size)
+	n, err := file.ReadAt(b, r.Offset)
+	if err != nil {
+		if n == 0 || !errors.Is(err, io.EOF) {
+			return fmt.Errorf("failed to read contents at offset: %d: %w", r.Offset, err)
+		}
+	}
+
+	expect := []byte(strings.Join(r.Contents, " "))
+	received := b[:n]
+	if !bytes.Equal(expect, received) {
+		return fmt.Errorf("contents doesn't match: expect(%s) != received(%s)", expect, received)
 	}
 
 	return nil
