@@ -92,9 +92,14 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 		filename := args[0]
 		rawPermission := args[1]
 		contents := args[2:]
+
 		permission, err := strconv.ParseUint(rawPermission, 8, 32)
 		if err != nil {
 			return fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		if strings.EqualFold(contents[0], "empty") {
+			contents = nil
 		}
 
 		t.Commands = append(t.Commands, &CreateFile{
@@ -111,6 +116,9 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 
 		filename := args[0]
 		contents := args[1:]
+		if strings.EqualFold(contents[0], "empty") {
+			contents = nil
+		}
 
 		t.Commands = append(t.Commands, &ReadFile{
 			Line:     line,
@@ -154,6 +162,24 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Mode: filetype,
 		})
 		return nil
+	case "size":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: size PATH SIZE")
+		}
+
+		filepath := args[0]
+		rawSize := args[1]
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse size: %s: %w", rawSize, err)
+		}
+
+		t.Commands = append(t.Commands, &Size{
+			Line: line,
+			Path: filepath,
+			Size: size,
+		})
+		return nil
 	case "rm", "rmdir":
 		if len(args) != 1 {
 			return fmt.Errorf("expecting: rm/rmdir PATH")
@@ -193,6 +219,58 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Line: line,
 			Path: filepath,
 			Mode: fs.FileMode(permission),
+		})
+		return nil
+	case "append":
+		if len(args) < 2 {
+			return fmt.Errorf("expecting: append FILE CONTENTS")
+		}
+
+		filename := args[0]
+		contents := args[1:]
+
+		t.Commands = append(t.Commands, &AppendFile{
+			Line:     line,
+			File:     filename,
+			Contents: contents,
+		})
+		return nil
+	case "truncate":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: truncate FILE SIZE")
+		}
+
+		filename := args[0]
+		rawSize := args[1]
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse size: %w", err)
+		}
+
+		t.Commands = append(t.Commands, &TruncateFile{
+			Line: line,
+			File: filename,
+			Size: size,
+		})
+		return nil
+	case "writeat":
+		if len(args) < 3 {
+			return fmt.Errorf("expecting: writeat FILE OFFSET CONTENTS")
+		}
+
+		filename := args[0]
+		rawOffset := args[1]
+		contents := args[2:]
+		offset, err := strconv.ParseInt(rawOffset, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse offset: %w", err)
+		}
+
+		t.Commands = append(t.Commands, &WriteAtFile{
+			Line:     line,
+			File:     filename,
+			Offset:   offset,
+			Contents: contents,
 		})
 		return nil
 	default:

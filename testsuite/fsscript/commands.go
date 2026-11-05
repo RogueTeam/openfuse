@@ -146,6 +146,28 @@ func (t *Type) Run(base string) (err error) {
 	return nil
 }
 
+type Size struct {
+	Line int
+	Path string
+	Size int64
+}
+
+func (s *Size) GetName() (name string) { return "size" }
+func (s *Size) GetLine() (line int)    { return s.Line }
+func (s *Size) Run(base string) (err error) {
+	filepath := path.Clean(path.Join(base, s.Path))
+
+	info, err := os.Stat(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to get file stat: %w", err)
+	}
+
+	if s.Size != info.Size() {
+		return fmt.Errorf("file size doesn't match: expect(%d) != received(%d)", s.Size, info.Size())
+	}
+	return nil
+}
+
 type Remove struct {
 	Line int
 	Path string
@@ -196,5 +218,82 @@ func (c *Chmod) Run(base string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to chmod path: %w", err)
 	}
+	return nil
+}
+
+type AppendFile struct {
+	Line     int
+	File     string
+	Contents []string
+}
+
+func (a *AppendFile) GetName() (name string) { return "append" }
+func (a *AppendFile) GetLine() (line int)    { return a.Line }
+func (a *AppendFile) Run(base string) (err error) {
+	filepath := path.Clean(path.Join(base, a.File))
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY, fs.ModeAppend)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(strings.Join(a.Contents, " "))
+	if err != nil {
+		return fmt.Errorf("failed to write contents: %w", err)
+	}
+
+	return nil
+}
+
+type TruncateFile struct {
+	Line int
+	File string
+	Size int64
+}
+
+func (t *TruncateFile) GetName() (name string) { return "truncate" }
+func (t *TruncateFile) GetLine() (line int)    { return t.Line }
+func (t *TruncateFile) Run(base string) (err error) {
+	filepath := path.Clean(path.Join(base, t.File))
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	err = file.Truncate(t.Size)
+	if err != nil {
+		return fmt.Errorf("failed to truncate file: %w", err)
+	}
+
+	return nil
+}
+
+type WriteAtFile struct {
+	Line     int
+	File     string
+	Offset   int64
+	Contents []string
+}
+
+func (w *WriteAtFile) GetName() (name string) { return "writeat" }
+func (w *WriteAtFile) GetLine() (line int)    { return w.Line }
+func (w *WriteAtFile) Run(base string) (err error) {
+	filepath := path.Clean(path.Join(base, w.File))
+
+	file, err := os.OpenFile(filepath, os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	contentsS := strings.Join(w.Contents, " ")
+	_, err = file.WriteAt([]byte(contentsS), w.Offset)
+	if err != nil {
+		return fmt.Errorf("failed to writeat file: %w", err)
+	}
+
 	return nil
 }

@@ -15,3 +15,8 @@ chmod secrets 777
 perm secrets 777
 type secrets dir
 ls secrets EMPTY
+
+= Empty file
+file empty.md 644 EMPTY
+cat empty.md EMPTY
+size empty.md 0
