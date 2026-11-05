@@ -6,9 +6,6 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"os"
-	"path"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,123 +18,6 @@ type Command interface {
 	GetName() (name string)
 	GetLine() (line int)
 	Run(base string) (err error)
-}
-
-type Mkdir struct {
-	Line       int
-	Directory  string
-	Permission fs.FileMode
-}
-
-func (m *Mkdir) GetName() (name string) { return "mkdir" }
-func (m *Mkdir) GetLine() (line int)    { return m.Line }
-func (m *Mkdir) Run(base string) (err error) {
-	dir := path.Clean(path.Join(base, m.Directory))
-
-	return os.Mkdir(dir, m.Permission)
-}
-
-type Readdir struct {
-	Line      int
-	Directory string
-	Expect    []string
-}
-
-func (r *Readdir) GetName() (name string) { return "ls" }
-func (r *Readdir) GetLine() (line int)    { return r.Line }
-func (r *Readdir) Run(base string) (err error) {
-	dir := path.Clean(path.Join(base, r.Directory))
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("failed to read directory: %w", err)
-	}
-
-	if len(r.Expect) == 0 {
-		if len(entries) > 0 {
-			return fmt.Errorf("expecting no values")
-		}
-		return nil
-	}
-
-	if len(r.Expect) != len(entries) {
-		return fmt.Errorf("expecting %d elements; got %d", len(r.Expect), len(entries))
-	}
-
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
-	slices.Sort(r.Expect)
-
-	for index, entry := range entries {
-		expect := r.Expect[index]
-		if expect != entry.Name() {
-			return fmt.Errorf("element %d doesn't match. expect(%s) != received(%s)", index, expect, entry.Name())
-		}
-	}
-
-	return nil
-}
-
-type CreateFile struct {
-	Line       int
-	File       string
-	Permission fs.FileMode
-	Contents   []string
-}
-
-func (c *CreateFile) GetName() (name string) { return "file" }
-func (c *CreateFile) GetLine() (line int)    { return c.Line }
-func (c *CreateFile) Run(base string) (err error) {
-	filepath := path.Clean(path.Join(base, c.File))
-	return os.WriteFile(filepath, []byte(strings.Join(c.Contents, " ")), c.Permission)
-}
-
-type ReadFile struct {
-	Line     int
-	File     string
-	Contents []string
-}
-
-func (r *ReadFile) GetName() (name string) { return "cat" }
-func (r *ReadFile) GetLine() (line int)    { return r.Line }
-func (r *ReadFile) Run(base string) (err error) {
-	filepath := path.Clean(path.Join(base, r.File))
-	contents, err := os.ReadFile(filepath)
-	if err != nil {
-		return fmt.Errorf("failed to read file contents: %w", err)
-	}
-
-	expect := strings.Join(r.Contents, " ")
-	contentsS := string(contents)
-	if expect != contentsS {
-		return fmt.Errorf("contents doesn't match: expected(%s) != received(%s)", expect, contentsS)
-	}
-	return nil
-}
-
-type Info struct {
-	Line int
-	Path string
-	Mode fs.FileMode
-}
-
-func (i *Info) GetName() (name string) { return "info" }
-func (i *Info) GetLine() (line int)    { return i.Line }
-func (i *Info) Run(base string) (err error) {
-	filepath := path.Clean(path.Join(base, i.Path))
-
-	info, err := os.Stat(filepath)
-	if err != nil {
-		return fmt.Errorf("failed to get file stat: %w", err)
-	}
-
-	if i.Mode.Type() != info.Mode().Type() {
-		return fmt.Errorf("file type doesn't match: expect(%s) != received(%s)", i.Mode.Type(), info.Mode().Type())
-	}
-
-	if i.Mode&0o7777 != info.Mode()&0o7777 {
-		return fmt.Errorf("file permissions doesn't match: expect(%o) != received(%o)", i.Mode&0o7777, info.Mode()&0o7777)
-	}
-	return nil
 }
 
 type Test struct {
@@ -238,28 +118,81 @@ func (t *Test) Append(line int, command string, args []string) (err error) {
 			Contents: contents,
 		})
 		return nil
-	case "info":
-		if len(args) != 3 {
-			return fmt.Errorf("expecting: info PATH PERMISSION TYPE")
+	case "perm":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: perm PATH PERMISSION")
 		}
 
 		filepath := args[0]
 		rawPermission := args[1]
-		rawType := args[2]
 		permission, err := strconv.ParseUint(rawPermission, 8, 32)
 		if err != nil {
 			return fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
 		}
 
+		t.Commands = append(t.Commands, &Permission{
+			Line: line,
+			Path: filepath,
+			Mode: fs.FileMode(permission),
+		})
+		return nil
+	case "type":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: type PATH TYPE")
+		}
+
+		filepath := args[0]
+		rawType := args[1]
 		filetype, err := FileTypeFromString(rawType)
 		if err != nil {
 			return fmt.Errorf("failed to convert type: %w", err)
 		}
 
-		t.Commands = append(t.Commands, &Info{
+		t.Commands = append(t.Commands, &Type{
 			Line: line,
 			Path: filepath,
-			Mode: fs.FileMode(permission) | filetype,
+			Mode: filetype,
+		})
+		return nil
+	case "rm", "rmdir":
+		if len(args) != 1 {
+			return fmt.Errorf("expecting: rm/rmdir PATH")
+		}
+
+		filepath := args[0]
+		t.Commands = append(t.Commands, &Remove{
+			Line: line,
+			Path: filepath,
+		})
+		return nil
+	case "mv":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: mv OLDNAME NEWNAME")
+		}
+
+		oldname := args[0]
+		newname := args[1]
+		t.Commands = append(t.Commands, &Rename{
+			Line:    line,
+			Oldname: oldname,
+			Newname: newname,
+		})
+		return nil
+	case "chmod":
+		if len(args) != 2 {
+			return fmt.Errorf("expecting: chmod PATH PERMISSION")
+		}
+
+		filepath := args[0]
+		rawPermission := args[1]
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+		t.Commands = append(t.Commands, &Chmod{
+			Line: line,
+			Path: filepath,
+			Mode: fs.FileMode(permission),
 		})
 		return nil
 	default:
@@ -298,20 +231,30 @@ func Parse[T ~string | ~[]byte](s T) (tests []Test, err error) {
 			continue
 		}
 
+		if curr.Name == "" {
+			return nil, fmt.Errorf("commands require a namespace: %d", 1+index)
+		}
 		err := curr.Append(1+index, command, args)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse line: %d: for command '%s' and args: '%s'", 1+index, command, strings.Join(args, " "))
+			return nil, fmt.Errorf("failed to parse line: %d: for command '%s' and args: '%s': %w", 1+index, command, strings.Join(args, " "), err)
 		}
 	}
 
 	if curr.Name != "" {
 		tests = append(tests, curr)
 	}
+
+	if len(tests) == 0 {
+		return nil, fmt.Errorf("no tests parsed")
+	}
 	return tests, nil
 }
 
 func GenericScripts(tb testing.TB) (tests []Test) {
 	err := fs.WalkDir(scripts, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("walk error: %w", err)
+		}
 		if d.IsDir() {
 			return nil
 		}
