@@ -49,6 +49,21 @@ size readme 3
 truncate readme 6
 size readme 6
 
+= Rewrite file with shorter content
+file readme 644 abcdef
+file readme 644 abc
+cat readme abc
+size readme 3
+truncate readme 3
+size readme 3
+cat readme abc
+
+= Truncate to zero, then append
+file readme 644 abcdef
+truncate readme 0
+append readme hello world
+cat readme hello world
+
 = Chmod a directory
 mkdir secrets 700
 chmod secrets 777
