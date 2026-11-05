@@ -374,7 +374,12 @@ func Parse[T ~string | ~[]byte](s T) (tests []Test, err error) {
 	return tests, nil
 }
 
-func GenericScripts(tb testing.TB) (tests []Test) {
+type Group struct {
+	File  string
+	Tests []Test
+}
+
+func GenericScripts(tb testing.TB) (groups []Group) {
 	err := fs.WalkDir(scripts, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk error: %w", err)
@@ -386,19 +391,19 @@ func GenericScripts(tb testing.TB) (tests []Test) {
 		if err != nil {
 			return fmt.Errorf("failed to read file: %s: %w", path, err)
 		}
-		newTests, err := Parse(contents)
+		tests, err := Parse(contents)
 		if err != nil {
 			return fmt.Errorf("failed to parse script: %s: %w", path, err)
 		}
 
-		for _, test := range newTests {
-			test.Name = path + ":" + test.Name
-			tests = append(tests, test)
-		}
+		groups = append(groups, Group{
+			File:  path,
+			Tests: tests,
+		})
 		return nil
 	})
 	if err != nil {
 		tb.Fatalf("failed to walk filesystem: %v", err)
 	}
-	return tests
+	return groups
 }
