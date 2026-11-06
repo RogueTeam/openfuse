@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/handlers/fshandler/tables"
-	"github.com/RogueTeam/openfuse/memfs"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler/tables"
+	"github.com/RogueTeam/openfuse/v8/memfs"
 	"golang.org/x/sys/unix"
 )
 

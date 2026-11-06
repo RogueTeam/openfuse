@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler"
 )
 
 type Dirent struct {

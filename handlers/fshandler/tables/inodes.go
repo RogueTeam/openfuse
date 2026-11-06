@@ -3,7 +3,7 @@
 package tables
 
 import (
-	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/v8/fuse"
 )
 
 type Inode struct {

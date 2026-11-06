@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/RogueTeam/openfuse/fuse"
-	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/v8/fuse"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler"
 )
 
 type Directory struct {

@@ -5,7 +5,7 @@ package fsscript_test
 import (
 	"testing"
 
-	"github.com/RogueTeam/openfuse/testsuite/fsscript"
+	"github.com/RogueTeam/openfuse/v8/testsuite/fsscript"
 )
 
 func Test_GenerateScripts(t *testing.T) {

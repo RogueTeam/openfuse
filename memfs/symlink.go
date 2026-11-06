@@ -5,7 +5,7 @@ package memfs
 import (
 	"io/fs"
 
-	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/v8/fuse"
 )
 
 type Symlink struct {

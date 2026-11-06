@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/RogueTeam/openfuse/fuse"
-	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/memfs"
-	"github.com/RogueTeam/openfuse/testsuite"
-	"github.com/RogueTeam/openfuse/testsuite/fsscript"
+	"github.com/RogueTeam/openfuse/v8/fuse"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/v8/memfs"
+	"github.com/RogueTeam/openfuse/v8/testsuite"
+	"github.com/RogueTeam/openfuse/v8/testsuite/fsscript"
 )
 
 func Test_Fsscript(t *testing.T) {

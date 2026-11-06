@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/v8/fuse"
 )
 
 type FileHandle struct {

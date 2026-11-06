@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/RogueTeam/openfuse/fuse"
-	"github.com/RogueTeam/openfuse/handlers/fshandler"
-	"github.com/RogueTeam/openfuse/memfs"
-	memfstestsuite "github.com/RogueTeam/openfuse/memfs/testsuite"
-	"github.com/RogueTeam/openfuse/testsuite"
+	"github.com/RogueTeam/openfuse/v8/fuse"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/v8/memfs"
+	memfstestsuite "github.com/RogueTeam/openfuse/v8/memfs/testsuite"
+	"github.com/RogueTeam/openfuse/v8/testsuite"
 )
 
 func Test_Mount(t *testing.T) {

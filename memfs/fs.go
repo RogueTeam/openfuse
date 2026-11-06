@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/RogueTeam/openfuse/fuse"
-	"github.com/RogueTeam/openfuse/handlers/fshandler"
+	"github.com/RogueTeam/openfuse/v8/fuse"
+	"github.com/RogueTeam/openfuse/v8/handlers/fshandler"
 	"golang.org/x/sys/unix"
 )
 

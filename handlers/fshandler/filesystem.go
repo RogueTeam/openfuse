@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/RogueTeam/openfuse/fuse"
+	"github.com/RogueTeam/openfuse/v8/fuse"
 	"golang.org/x/sys/unix"
 )
 
