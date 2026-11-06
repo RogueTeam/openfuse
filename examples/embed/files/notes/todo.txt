@@ -1,0 +1,2 @@
+- write more tests
+- try the zip example
