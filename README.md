@@ -1,6 +1,6 @@
 # openfuse
 
-[Documentation](https://pkg.go.dev/github.com/RogueTeam/openfuse)
+[Documentation](https://pkg.go.dev/github.com/RogueTeam/openfuse/v8)
 
 > IMPORTANT: AI USAGE IS NOT ALLOWED IN THIS PROJECT
 
