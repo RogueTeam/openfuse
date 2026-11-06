@@ -466,8 +466,8 @@ type Fail struct {
 	Command Command
 }
 
-func (f *Fail) GetName() (name string) { return "! " + f.GetName() }
-func (f *Fail) GetLine() (line int)    { return f.GetLine() }
+func (f *Fail) GetName() (name string) { return "! " + f.Command.GetName() }
+func (f *Fail) GetLine() (line int)    { return f.Command.GetLine() }
 func (f *Fail) Run(ctx *CommandContext, base string) (err error) {
 	err = f.Command.Run(ctx, base)
 	if err == nil {
