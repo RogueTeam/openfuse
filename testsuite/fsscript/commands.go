@@ -284,6 +284,46 @@ func (r *Rename) Run(ctx *CommandContext, base string) (err error) {
 	return nil
 }
 
+type Symlink struct {
+	Line             int
+	Oldname, Newname string
+}
+
+func (s *Symlink) GetName() (name string) { return "symlink" }
+func (s *Symlink) GetLine() (line int)    { return s.Line }
+func (s *Symlink) Run(ctx *CommandContext, base string) (err error) {
+	oldfullpath := path.Clean(path.Join(base, s.Oldname))
+	newfullpath := path.Clean(path.Join(base, s.Newname))
+
+	err = os.Symlink(oldfullpath, newfullpath)
+	if err != nil {
+		return fmt.Errorf("failed to symlink oldname to newname: %w", err)
+	}
+	return nil
+}
+
+type Readlink struct {
+	Line          int
+	Path, Newname string
+}
+
+func (r *Readlink) GetName() (name string) { return "readlink" }
+func (r *Readlink) GetLine() (line int)    { return r.Line }
+func (r *Readlink) Run(ctx *CommandContext, base string) (err error) {
+	linkFullpath := path.Clean(path.Join(base, r.Path))
+	newfullpath := path.Clean(path.Join(base, r.Newname))
+
+	target, err := os.Readlink(linkFullpath)
+	if err != nil {
+		return fmt.Errorf("failed to readlink: %w", err)
+	}
+
+	if newfullpath != target {
+		return fmt.Errorf("link doesn't match: expected(%s) != received(%s)", newfullpath, target)
+	}
+	return nil
+}
+
 type Chmod struct {
 	Line int
 	Path string
@@ -775,6 +815,30 @@ func NewCommand(line int, command string, args []string) (cmd Command, err error
 		return &Rename{
 			Line:    line,
 			Oldname: oldname,
+			Newname: newname,
+		}, nil
+	case "symlink":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: symlink OLDNAME NEWNAME")
+		}
+
+		oldname := args[0]
+		newname := args[1]
+		return &Symlink{
+			Line:    line,
+			Oldname: oldname,
+			Newname: newname,
+		}, nil
+	case "readlink":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: readlink PATH NEWNAME")
+		}
+
+		filename := args[0]
+		newname := args[1]
+		return &Readlink{
+			Line:    line,
+			Path:    filename,
 			Newname: newname,
 		}, nil
 	case "chmod":
