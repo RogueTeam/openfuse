@@ -40,7 +40,9 @@ func Test_Fsscript(t *testing.T) {
 						i.Close()
 					}()
 
-					err = test.Run(i.Mountpoint)
+					ctx := fsscript.NewContext()
+					t.Cleanup(func() { ctx.Close() })
+					err = test.Run(ctx, i.Mountpoint)
 					if err != nil {
 						t.Fatalf("failed to run test: %v", err)
 						return

@@ -13,37 +13,20 @@ import (
 //go:embed scripts
 var scripts embed.FS
 
-type Command interface {
-	GetName() (name string)
-	GetLine() (line int)
-	Run(base string) (err error)
-}
-
 type Test struct {
 	Name     string
 	Commands []Command
 }
 
 // Runs the tests with base as the base directory to construct the filesystem
-func (t *Test) Run(base string) (err error) {
+func (t *Test) Run(ctx *CommandContext, base string) (err error) {
 	for _, command := range t.Commands {
-		err := command.Run(base)
+		err := command.Run(ctx, base)
 		if err != nil {
 			return fmt.Errorf("failed to run command: %s at line %d: %w", command.GetName(), command.GetLine(), err)
 		}
 	}
 	return nil
-}
-
-func FileTypeFromString(s string) (mode fs.FileMode, err error) {
-	switch s {
-	case "dir":
-		return fs.ModeDir, nil
-	case "file":
-		return 0, nil
-	default:
-		return 0, fmt.Errorf("unknown file type: %s", s)
-	}
 }
 
 func (t *Test) Append(line int, fail bool, command string, args []string) (err error) {

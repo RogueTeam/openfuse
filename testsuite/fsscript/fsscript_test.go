@@ -9,6 +9,19 @@ import (
 )
 
 func Test_GenerateScripts(t *testing.T) {
-	tests := fsscript.GenericScripts(t)
-	t.Logf("Parsed: %d scripts", len(tests))
+	groups := fsscript.GenericScripts(t)
+	for _, group := range groups {
+		t.Run(group.File, func(t *testing.T) {
+			for _, test := range group.Tests {
+				t.Run(test.Name, func(t *testing.T) {
+					ctx := fsscript.NewContext()
+					t.Cleanup(func() { ctx.Close() })
+					err := test.Run(ctx, t.TempDir())
+					if err != nil {
+						t.Fatalf("failed to run test: %v", err)
+					}
+				})
+			}
+		})
+	}
 }

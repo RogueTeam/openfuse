@@ -16,6 +16,30 @@ import (
 	"strings"
 )
 
+type Command interface {
+	GetName() (name string)
+	GetLine() (line int)
+	Run(ctx *CommandContext, base string) (err error)
+}
+
+type CommandContext struct {
+	Handles map[string]fs.File
+}
+
+func (c *CommandContext) Close() (err error) {
+	for name, h := range c.Handles {
+		h.Close()
+		delete(c.Handles, name)
+	}
+	return nil
+}
+
+func NewContext() (ctx *CommandContext) {
+	return &CommandContext{
+		Handles: make(map[string]fs.File),
+	}
+}
+
 type Mkdir struct {
 	Line       int
 	Directory  string
@@ -24,7 +48,7 @@ type Mkdir struct {
 
 func (m *Mkdir) GetName() (name string) { return "mkdir" }
 func (m *Mkdir) GetLine() (line int)    { return m.Line }
-func (m *Mkdir) Run(base string) (err error) {
+func (m *Mkdir) Run(ctx *CommandContext, base string) (err error) {
 	dir := path.Clean(path.Join(base, m.Directory))
 
 	return os.Mkdir(dir, m.Permission)
@@ -38,7 +62,7 @@ type Readdir struct {
 
 func (r *Readdir) GetName() (name string) { return "ls" }
 func (r *Readdir) GetLine() (line int)    { return r.Line }
-func (r *Readdir) Run(base string) (err error) {
+func (r *Readdir) Run(ctx *CommandContext, base string) (err error) {
 	dir := path.Clean(path.Join(base, r.Directory))
 
 	entries, err := os.ReadDir(dir)
@@ -78,7 +102,7 @@ type ReaddirCount struct {
 
 func (r *ReaddirCount) GetName() (name string) { return "lscount" }
 func (r *ReaddirCount) GetLine() (line int)    { return r.Line }
-func (r *ReaddirCount) Run(base string) (err error) {
+func (r *ReaddirCount) Run(ctx *CommandContext, base string) (err error) {
 	dir := path.Clean(path.Join(base, r.Directory))
 
 	entries, err := os.ReadDir(dir)
@@ -102,7 +126,7 @@ type CreateFile struct {
 
 func (c *CreateFile) GetName() (name string) { return "file" }
 func (c *CreateFile) GetLine() (line int)    { return c.Line }
-func (c *CreateFile) Run(base string) (err error) {
+func (c *CreateFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, c.File))
 	return os.WriteFile(filepath, []byte(strings.Join(c.Contents, " ")), c.Permission)
 }
@@ -115,7 +139,7 @@ type ReadFile struct {
 
 func (r *ReadFile) GetName() (name string) { return "cat" }
 func (r *ReadFile) GetLine() (line int)    { return r.Line }
-func (r *ReadFile) Run(base string) (err error) {
+func (r *ReadFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, r.File))
 	contents, err := os.ReadFile(filepath)
 	if err != nil {
@@ -138,7 +162,7 @@ type Permission struct {
 
 func (p *Permission) GetName() (name string) { return "perm" }
 func (p *Permission) GetLine() (line int)    { return p.Line }
-func (p *Permission) Run(base string) (err error) {
+func (p *Permission) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, p.Path))
 
 	info, err := os.Stat(filepath)
@@ -160,7 +184,7 @@ type Type struct {
 
 func (t *Type) GetName() (name string) { return "type" }
 func (t *Type) GetLine() (line int)    { return t.Line }
-func (t *Type) Run(base string) (err error) {
+func (t *Type) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, t.Path))
 
 	info, err := os.Stat(filepath)
@@ -182,7 +206,7 @@ type Size struct {
 
 func (s *Size) GetName() (name string) { return "size" }
 func (s *Size) GetLine() (line int)    { return s.Line }
-func (s *Size) Run(base string) (err error) {
+func (s *Size) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, s.Path))
 
 	info, err := os.Stat(filepath)
@@ -203,7 +227,7 @@ type Remove struct {
 
 func (r *Remove) GetName() (name string) { return "rm" }
 func (r *Remove) GetLine() (line int)    { return r.Line }
-func (r *Remove) Run(base string) (err error) {
+func (r *Remove) Run(ctx *CommandContext, base string) (err error) {
 	fullpath := path.Clean(path.Join(base, r.Path))
 
 	err = os.Remove(fullpath)
@@ -221,7 +245,7 @@ type RemoveCount struct {
 
 func (r *RemoveCount) GetName() (name string) { return "rmcount" }
 func (r *RemoveCount) GetLine() (line int)    { return r.Line }
-func (r *RemoveCount) Run(base string) (err error) {
+func (r *RemoveCount) Run(ctx *CommandContext, base string) (err error) {
 	fullpath := path.Clean(path.Join(base, r.Path))
 
 	entries, err := os.ReadDir(fullpath)
@@ -249,7 +273,7 @@ type Rename struct {
 
 func (r *Rename) GetName() (name string) { return "mv" }
 func (r *Rename) GetLine() (line int)    { return r.Line }
-func (r *Rename) Run(base string) (err error) {
+func (r *Rename) Run(ctx *CommandContext, base string) (err error) {
 	oldfullpath := path.Clean(path.Join(base, r.Oldname))
 	newfullpath := path.Clean(path.Join(base, r.Newname))
 
@@ -268,7 +292,7 @@ type Chmod struct {
 
 func (c *Chmod) GetName() (name string) { return "chmod" }
 func (c *Chmod) GetLine() (line int)    { return c.Line }
-func (c *Chmod) Run(base string) (err error) {
+func (c *Chmod) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, c.Path))
 
 	err = os.Chmod(filepath, c.Mode)
@@ -286,7 +310,7 @@ type AppendFile struct {
 
 func (a *AppendFile) GetName() (name string) { return "append" }
 func (a *AppendFile) GetLine() (line int)    { return a.Line }
-func (a *AppendFile) Run(base string) (err error) {
+func (a *AppendFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, a.File))
 
 	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_APPEND, 0)
@@ -311,7 +335,7 @@ type TruncateFile struct {
 
 func (t *TruncateFile) GetName() (name string) { return "truncate" }
 func (t *TruncateFile) GetLine() (line int)    { return t.Line }
-func (t *TruncateFile) Run(base string) (err error) {
+func (t *TruncateFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, t.File))
 
 	file, err := os.OpenFile(filepath, os.O_WRONLY, 0)
@@ -337,7 +361,7 @@ type WriteAtFile struct {
 
 func (w *WriteAtFile) GetName() (name string) { return "writeat" }
 func (w *WriteAtFile) GetLine() (line int)    { return w.Line }
-func (w *WriteAtFile) Run(base string) (err error) {
+func (w *WriteAtFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, w.File))
 
 	file, err := os.OpenFile(filepath, os.O_WRONLY, 0)
@@ -363,7 +387,7 @@ type RandomFile struct {
 
 func (r *RandomFile) GetName() (name string) { return "randomfile" }
 func (r *RandomFile) GetLine() (line int)    { return r.Line }
-func (r *RandomFile) Run(base string) (err error) {
+func (r *RandomFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, r.File))
 
 	file, err := os.Create(filepath)
@@ -390,7 +414,7 @@ type ReadAtFile struct {
 
 func (r *ReadAtFile) GetName() (name string) { return "readat" }
 func (r *ReadAtFile) GetLine() (line int)    { return r.Line }
-func (r *ReadAtFile) Run(base string) (err error) {
+func (r *ReadAtFile) Run(ctx *CommandContext, base string) (err error) {
 	filepath := path.Clean(path.Join(base, r.File))
 
 	file, err := os.OpenFile(filepath, os.O_RDONLY, 0)
@@ -425,7 +449,7 @@ type TouchnFile struct {
 
 func (t *TouchnFile) GetName() (name string) { return "touchn" }
 func (t *TouchnFile) GetLine() (line int)    { return t.Line }
-func (t *TouchnFile) Run(base string) (err error) {
+func (t *TouchnFile) Run(ctx *CommandContext, base string) (err error) {
 	prefix := path.Clean(path.Join(base, t.Prefix))
 	for n := range t.Count {
 		filename := prefix + strconv.FormatInt(n, 10)
@@ -442,16 +466,80 @@ type Fail struct {
 	Command Command
 }
 
-var _ Command = (*Fail)(nil)
-
 func (f *Fail) GetName() (name string) { return "! " + f.GetName() }
 func (f *Fail) GetLine() (line int)    { return f.GetLine() }
-func (f *Fail) Run(base string) (err error) {
-	err = f.Command.Run(base)
+func (f *Fail) Run(ctx *CommandContext, base string) (err error) {
+	err = f.Command.Run(ctx, base)
 	if err == nil {
 		return fmt.Errorf("expecting a failure")
 	}
 	return nil
+}
+
+type Open struct {
+	Line       int
+	Path       string
+	Name       string
+	Flag       int
+	Permission fs.FileMode
+}
+
+func (o *Open) GetName() (name string) { return "open" }
+func (o *Open) GetLine() (line int)    { return o.Line }
+func (o *Open) Run(ctx *CommandContext, base string) (err error) {
+	filepath := path.Clean(path.Join(base, o.Path))
+
+	if _, found := ctx.Handles[o.Name]; found {
+		return fmt.Errorf("name already in use: %s", o.Name)
+	}
+
+	file, err := os.OpenFile(filepath, o.Flag, o.Permission)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	ctx.Handles[o.Name] = file
+	return nil
+}
+
+type Close struct {
+	Line int
+	Name string
+}
+
+func (c *Close) GetName() (name string) { return "close" }
+func (c *Close) GetLine() (line int)    { return c.Line }
+func (c *Close) Run(ctx *CommandContext, base string) (err error) {
+	if handle, found := ctx.Handles[c.Name]; found {
+		return handle.Close()
+
+	}
+
+	return fmt.Errorf("name is not in use: %s", c.Name)
+}
+
+type ReadAll struct {
+	Line     int
+	Name     string
+	Contents []string
+}
+
+func (r *ReadAll) GetName() (name string) { return "readall" }
+func (r *ReadAll) GetLine() (line int)    { return r.Line }
+func (r *ReadAll) Run(ctx *CommandContext, base string) (err error) {
+	if handle, found := ctx.Handles[r.Name]; found {
+		contents, err := io.ReadAll(handle)
+		if err != nil {
+			return fmt.Errorf("failed to read contents: %w", err)
+		}
+
+		contentsS := string(contents)
+		expect := strings.Join(r.Contents, " ")
+		if expect != contentsS {
+			return fmt.Errorf("contents doesn't match: expect(%s) != received(%s)", expect, contentsS)
+		}
+		return nil
+	}
+	return fmt.Errorf("name is not in use: %s", r.Name)
 }
 
 func NewCommand(line int, command string, args []string) (cmd Command, err error) {
@@ -769,6 +857,60 @@ func NewCommand(line int, command string, args []string) (cmd Command, err error
 			Prefix:     prefix,
 			Permission: fs.FileMode(permission),
 			Count:      count,
+		}, nil
+	case "open":
+		if len(args) != 4 {
+			return nil, fmt.Errorf("expecting: open PATH HANDLE_NAME FLAG PERM")
+		}
+
+		path := args[0]
+		name := args[1]
+		rawFlag := args[2]
+		rawPermission := args[3]
+
+		flag, err := OpenFlagFromString(rawFlag)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse open flag from string: %w", err)
+		}
+
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		return &Open{
+			Line:       line,
+			Path:       path,
+			Name:       name,
+			Flag:       flag,
+			Permission: fs.FileMode(permission),
+		}, nil
+	case "close":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("expecting: close HANDLE_NAME")
+		}
+
+		name := args[0]
+
+		return &Close{
+			Line: line,
+			Name: name,
+		}, nil
+	case "readall":
+		if len(args) < 2 {
+			return nil, fmt.Errorf("expecting: readall HANDLE_NAME CONTENTS")
+		}
+
+		name := args[0]
+		contents := args[1:]
+		if strings.EqualFold(contents[0], "empty") {
+			contents = nil
+		}
+
+		return &ReadAll{
+			Line:     line,
+			Name:     name,
+			Contents: contents,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown command: %s", command)
