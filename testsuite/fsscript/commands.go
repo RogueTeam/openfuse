@@ -110,7 +110,7 @@ func (r *ReaddirCount) Run(ctx *CommandContext, base string) (err error) {
 		return fmt.Errorf("failed to read directory: %w", err)
 	}
 
-	if int64(len(entries)) > r.Count {
+	if int64(len(entries)) != r.Count {
 		return fmt.Errorf("expecting %d but received %d", r.Count, len(entries))
 	}
 
