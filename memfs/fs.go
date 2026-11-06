@@ -3,7 +3,6 @@
 package memfs
 
 import (
-	"bytes"
 	"io/fs"
 	"path"
 	"strings"
@@ -61,23 +60,22 @@ func (n *Node) openFile(flags uint32) (file *File) {
 			return
 		}
 	}()
-	var contents []byte = n.Contents
 	var cursor int
 	if flags&unix.O_TRUNC == unix.O_TRUNC {
-		contents = nil
+		cursor = 0
 	}
 	if flags&unix.O_APPEND == unix.O_APPEND {
-		cursor = len(contents)
+		cursor = len(n.Contents)
 	}
 	switch {
 	default:
 		return nil
 	case flags&unix.O_RDWR == unix.O_RDWR || (flags&unix.O_WRONLY == unix.O_WRONLY && flags&unix.O_RDONLY == unix.O_RDONLY):
-		return &File{AllowRead: true, AllowWrite: true, Reference: n, Cursor: cursor, Contents: bytes.Clone(contents)}
+		return &File{AllowRead: true, AllowWrite: true, Reference: n, Cursor: cursor}
 	case flags&unix.O_WRONLY == unix.O_WRONLY:
-		return &File{AllowWrite: true, Reference: n, Cursor: cursor, Contents: bytes.Clone(contents)}
+		return &File{AllowWrite: true, Reference: n, Cursor: cursor}
 	case flags&unix.O_RDONLY == unix.O_RDONLY:
-		return &File{AllowRead: true, Reference: n, Cursor: cursor, Contents: contents}
+		return &File{AllowRead: true, Reference: n, Cursor: cursor}
 	}
 }
 

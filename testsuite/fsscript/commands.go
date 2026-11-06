@@ -23,7 +23,7 @@ type Command interface {
 }
 
 type CommandContext struct {
-	Handles map[string]fs.File
+	Handles map[string]*os.File
 }
 
 func (c *CommandContext) Close() (err error) {
@@ -36,7 +36,7 @@ func (c *CommandContext) Close() (err error) {
 
 func NewContext() (ctx *CommandContext) {
 	return &CommandContext{
-		Handles: make(map[string]fs.File),
+		Handles: make(map[string]*os.File),
 	}
 }
 
@@ -542,6 +542,26 @@ func (r *ReadAll) Run(ctx *CommandContext, base string) (err error) {
 	return fmt.Errorf("name is not in use: %s", r.Name)
 }
 
+type WriteAll struct {
+	Line     int
+	Name     string
+	Contents []string
+}
+
+func (w *WriteAll) GetName() (name string) { return "writeall" }
+func (w *WriteAll) GetLine() (line int)    { return w.Line }
+func (w *WriteAll) Run(ctx *CommandContext, base string) (err error) {
+	if handle, found := ctx.Handles[w.Name]; found {
+		contents := strings.Join(w.Contents, " ")
+		_, err = handle.WriteString(contents)
+		if err != nil {
+			return fmt.Errorf("failed to write contents: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("name is not in use: %s", w.Name)
+}
+
 func NewCommand(line int, command string, args []string) (cmd Command, err error) {
 	switch command {
 	case "mkdir":
@@ -908,6 +928,22 @@ func NewCommand(line int, command string, args []string) (cmd Command, err error
 		}
 
 		return &ReadAll{
+			Line:     line,
+			Name:     name,
+			Contents: contents,
+		}, nil
+	case "writeall":
+		if len(args) < 2 {
+			return nil, fmt.Errorf("expecting: writeall HANDLE_NAME CONTENTS")
+		}
+
+		name := args[0]
+		contents := args[1:]
+		if strings.EqualFold(contents[0], "empty") {
+			contents = nil
+		}
+
+		return &WriteAll{
 			Line:     line,
 			Name:     name,
 			Contents: contents,

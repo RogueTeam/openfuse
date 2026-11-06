@@ -3,7 +3,6 @@
 package memfs
 
 import (
-	"bytes"
 	"io"
 	"io/fs"
 	"time"
@@ -17,8 +16,6 @@ type File struct {
 	Closed                bool
 	Reference             *Node
 	Cursor                int
-	Modified              bool
-	Contents              []byte
 }
 
 func (f *File) Stat() (info fs.FileInfo, err error) {
@@ -36,11 +33,11 @@ func (f *File) Read(b []byte) (n int, err error) {
 		return 0, fuse.ErrorBadFileDescriptor.GoError
 	}
 
-	if f.Cursor >= len(f.Contents) {
+	if f.Cursor >= len(f.Reference.Contents) {
 		return 0, io.EOF
 	}
 
-	n = copy(b, f.Contents[f.Cursor:])
+	n = copy(b, f.Reference.Contents[f.Cursor:])
 	f.Cursor += n
 	if n == 0 {
 		return 0, io.EOF
@@ -56,11 +53,11 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 		return 0, fuse.ErrorBadFileDescriptor.GoError
 	}
 
-	if off >= int64(len(f.Contents)) {
+	if off >= int64(len(f.Reference.Contents)) {
 		return 0, io.EOF
 	}
 
-	n = copy(b, f.Contents[off:min(off+int64(len(b)), int64(len(f.Contents)))])
+	n = copy(b, f.Reference.Contents[off:min(off+int64(len(b)), int64(len(f.Reference.Contents)))])
 	return n, nil
 }
 
@@ -89,26 +86,25 @@ func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 	// len(f.Contents) = 1
 	// off = 1
 	// Out of bound index = f.Contents[1]
-	if int64(len(f.Contents)) <= off {
+	if int64(len(f.Reference.Contents)) <= off {
 		// Save enough space to store up to offset index + the size of the input buffer
 		newBuffer := make([]byte, off+int64(len(b)))
-		copy(newBuffer, f.Contents)
-		f.Contents = newBuffer
+		copy(newBuffer, f.Reference.Contents)
+		f.Reference.Contents = newBuffer
 	}
 
-	sub := f.Contents[off:]
+	sub := f.Reference.Contents[off:]
 	if len(sub) < len(b) {
-		newBuffer := make([]byte, len(f.Contents[:off])+len(b))
-		copy(newBuffer, f.Contents[:off])
-		f.Contents = newBuffer
-		sub = f.Contents[off:]
+		newBuffer := make([]byte, len(f.Reference.Contents[:off])+len(b))
+		copy(newBuffer, f.Reference.Contents[:off])
+		f.Reference.Contents = newBuffer
+		sub = f.Reference.Contents[off:]
 	}
 
 	n = copy(sub, b)
-	if !f.Modified {
-		f.Modified = true
-	}
 
+	f.Reference.Info.Attributes.Size = uint64(len(f.Reference.Contents))
+	f.Reference.Info.Attributes.Mtime = uint64(time.Now().Unix())
 	return n, nil
 }
 
@@ -116,22 +112,14 @@ func (f *File) Sync() (err error) {
 	if f.Closed {
 		return fs.ErrClosed
 	}
-
-	if !f.AllowWrite {
-		return nil
-	}
-
-	if f.Modified && !bytes.Equal(f.Contents, f.Reference.Contents) {
-		f.Reference.Contents = f.Contents
-
-		f.Reference.Info.Attributes.Size = uint64(len(f.Contents))
-		f.Reference.Info.Attributes.Mtime = uint64(time.Now().Unix())
-	}
-	return
+	return nil
 }
 
 func (f *File) Close() (err error) {
 	err = f.Sync()
+	if err != nil {
+		return err
+	}
 	f.Closed = true
 	return err
 }
@@ -139,21 +127,20 @@ func (f *File) Close() (err error) {
 func (f *File) Setattr(attr *fshandler.Setattr) (info fs.FileInfo, err error) {
 	if attr.Valid&fuse.FuseFattrSize == fuse.FuseFattrSize {
 		switch {
-		case uint64(len(f.Contents)) == attr.Size:
+		case uint64(len(f.Reference.Contents)) == attr.Size:
 			break
-		case uint64(len(f.Contents)) > attr.Size:
-			f.Contents = f.Contents[:attr.Size]
-		case uint64(len(f.Contents)) < attr.Size:
+		case uint64(len(f.Reference.Contents)) > attr.Size:
+			f.Reference.Contents = f.Reference.Contents[:attr.Size]
+		case uint64(len(f.Reference.Contents)) < attr.Size:
 			newBuffer := make([]byte, attr.Size)
-			copy(newBuffer, f.Contents)
-			f.Contents = newBuffer
+			copy(newBuffer, f.Reference.Contents)
+			f.Reference.Contents = newBuffer
 		}
 
-		if f.Cursor >= len(f.Contents) {
-			f.Cursor = len(f.Contents) - 1
+		if f.Cursor >= len(f.Reference.Contents) {
+			f.Cursor = len(f.Reference.Contents) - 1
 		}
-		f.Reference.Info.Attributes.Size = uint64(len(f.Contents))
-		f.Reference.Contents = f.Contents
+		f.Reference.Info.Attributes.Size = uint64(len(f.Reference.Contents))
 	}
 
 	if attr.Valid&fuse.FuseFattrMode == fuse.FuseFattrMode {
