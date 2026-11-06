@@ -437,3 +437,340 @@ func (t *TouchnFile) Run(base string) (err error) {
 	}
 	return nil
 }
+
+type Fail struct {
+	Command Command
+}
+
+var _ Command = (*Fail)(nil)
+
+func (f *Fail) GetName() (name string) { return "! " + f.GetName() }
+func (f *Fail) GetLine() (line int)    { return f.GetLine() }
+func (f *Fail) Run(base string) (err error) {
+	err = f.Command.Run(base)
+	if err == nil {
+		return fmt.Errorf("expecting a failure")
+	}
+	return nil
+}
+
+func NewCommand(line int, command string, args []string) (cmd Command, err error) {
+	switch command {
+	case "mkdir":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: mkdir DIRECTORY PERMISSION")
+		}
+
+		directory := args[0]
+		rawPermission := args[1]
+		permission, err := strconv.ParseUint(rawPermission, 8, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		return &Mkdir{
+			Line:       line,
+			Directory:  directory,
+			Permission: fs.FileMode(permission),
+		}, nil
+	case "ls":
+		if len(args) < 2 {
+			return nil, fmt.Errorf("expecting: ls DIRECTORY EMPTY | (EXPECT [EXPECT [...]])")
+		}
+
+		directory := args[0]
+		expect := args[1:]
+		if strings.EqualFold(expect[0], "empty") {
+			expect = nil
+		}
+
+		return &Readdir{
+			Line:      line,
+			Directory: directory,
+			Expect:    expect,
+		}, nil
+	case "lscount":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: lscount DIRECTORY COUNT")
+		}
+
+		directory := args[0]
+		rawCount := args[1]
+		count, err := strconv.ParseInt(rawCount, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse count: %s: %w", rawCount, err)
+		}
+
+		return &ReaddirCount{
+			Line:      line,
+			Directory: directory,
+			Count:     count,
+		}, nil
+	case "file":
+		if len(args) < 3 {
+			return nil, fmt.Errorf("expecting: file FILE PERMISSION CONTENTS")
+		}
+
+		filename := args[0]
+		rawPermission := args[1]
+		contents := args[2:]
+
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		if strings.EqualFold(contents[0], "empty") {
+			contents = nil
+		}
+
+		return &CreateFile{
+			Line:       line,
+			File:       filename,
+			Permission: fs.FileMode(permission),
+			Contents:   contents,
+		}, nil
+	case "cat":
+		if len(args) < 2 {
+			return nil, fmt.Errorf("expecting: cat FILE CONTENTS")
+		}
+
+		filename := args[0]
+		contents := args[1:]
+		if strings.EqualFold(contents[0], "empty") {
+			contents = nil
+		}
+
+		return &ReadFile{
+			Line:     line,
+			File:     filename,
+			Contents: contents,
+		}, nil
+	case "perm":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: perm PATH PERMISSION")
+		}
+
+		filepath := args[0]
+		rawPermission := args[1]
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		return &Permission{
+			Line: line,
+			Path: filepath,
+			Mode: fs.FileMode(permission),
+		}, nil
+	case "type":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: type PATH TYPE")
+		}
+
+		filepath := args[0]
+		rawType := args[1]
+		filetype, err := FileTypeFromString(rawType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert type: %w", err)
+		}
+
+		return &Type{
+			Line: line,
+			Path: filepath,
+			Mode: filetype,
+		}, nil
+	case "size":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: size PATH SIZE")
+		}
+
+		filepath := args[0]
+		rawSize := args[1]
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse size: %s: %w", rawSize, err)
+		}
+
+		return &Size{
+			Line: line,
+			Path: filepath,
+			Size: size,
+		}, nil
+	case "rm", "rmdir":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("expecting: rm/rmdir PATH")
+		}
+
+		filepath := args[0]
+		return &Remove{
+			Line: line,
+			Path: filepath,
+		}, nil
+	case "rmcount":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: rmcount DIRPATH COUNT")
+		}
+
+		filepath := args[0]
+		rawCount := args[1]
+		count, err := strconv.ParseInt(rawCount, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse count: %s: %w", rawCount, err)
+		}
+
+		return &RemoveCount{
+			Line:  line,
+			Path:  filepath,
+			Count: count,
+		}, nil
+	case "mv":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: mv OLDNAME NEWNAME")
+		}
+
+		oldname := args[0]
+		newname := args[1]
+		return &Rename{
+			Line:    line,
+			Oldname: oldname,
+			Newname: newname,
+		}, nil
+	case "chmod":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: chmod PATH PERMISSION")
+		}
+
+		filepath := args[0]
+		rawPermission := args[1]
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+		return &Chmod{
+			Line: line,
+			Path: filepath,
+			Mode: fs.FileMode(permission),
+		}, nil
+	case "append":
+		if len(args) < 2 {
+			return nil, fmt.Errorf("expecting: append FILE CONTENTS")
+		}
+
+		filename := args[0]
+		contents := args[1:]
+
+		return &AppendFile{
+			Line:     line,
+			File:     filename,
+			Contents: contents,
+		}, nil
+	case "truncate":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: truncate FILE SIZE")
+		}
+
+		filename := args[0]
+		rawSize := args[1]
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse size: %w", err)
+		}
+
+		return &TruncateFile{
+			Line: line,
+			File: filename,
+			Size: size,
+		}, nil
+	case "writeat":
+		if len(args) < 3 {
+			return nil, fmt.Errorf("expecting: writeat FILE OFFSET CONTENTS")
+		}
+
+		filename := args[0]
+		rawOffset := args[1]
+		contents := args[2:]
+		offset, err := strconv.ParseInt(rawOffset, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse offset: %w", err)
+		}
+
+		return &WriteAtFile{
+			Line:     line,
+			File:     filename,
+			Offset:   offset,
+			Contents: contents,
+		}, nil
+	case "randomfile":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("expecting: randomfile FILE SIZE")
+		}
+
+		filename := args[0]
+		rawSize := args[1]
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse size: %w", err)
+		}
+
+		return &RandomFile{
+			Line: line,
+			File: filename,
+			Size: size,
+		}, nil
+	case "readat":
+		if len(args) < 3 {
+			return nil, fmt.Errorf("expecting: readat FILE OFFSET SIZE CONTENTS")
+		}
+
+		filename := args[0]
+		rawOffset := args[1]
+		rawSize := args[2]
+		contents := args[3:]
+
+		offset, err := strconv.ParseInt(rawOffset, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse offset: %w", err)
+		}
+
+		size, err := strconv.ParseInt(rawSize, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse size: %w", err)
+		}
+
+		return &ReadAtFile{
+			Line:     line,
+			File:     filename,
+			Offset:   offset,
+			Size:     size,
+			Contents: contents,
+		}, nil
+	case "touchn":
+		if len(args) != 3 {
+			return nil, fmt.Errorf("expecting: touchn PREFIX PERMISSION COUNT")
+		}
+
+		prefix := args[0]
+		rawPermission := args[1]
+		rawCount := args[2]
+
+		permission, err := strconv.ParseUint(rawPermission, 8, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse permission: %s: %w", rawPermission, err)
+		}
+
+		count, err := strconv.ParseInt(rawCount, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse count: %s: %w", rawCount, err)
+		}
+
+		return &TouchnFile{
+			Line:       line,
+			Prefix:     prefix,
+			Permission: fs.FileMode(permission),
+			Count:      count,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown command: %s", command)
+	}
+}

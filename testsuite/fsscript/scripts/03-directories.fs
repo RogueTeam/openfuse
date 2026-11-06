@@ -78,3 +78,33 @@ lscount a 1
 lscount a/b 1
 lscount a/b/c 1
 lscount a/b/c/d 1
+
+= Mkdir in existing directory
+mkdir dir 700
+! mkdir dir 700
+
+= Mkdir in missing parent
+! mkdir missing/dir 700
+
+= rmdir on non-empty directory
+mkdir parent 700
+file parent/readme 700 hello world
+
+! rmdir parent
+
+= Rmdir then recreate
+mkdir parent 700
+file parent/readme 700 hello world
+lscount parent 1
+
+rm parent/readme
+rmdir parent
+lscount . 0
+mkdir parent 700
+lscount parent 0
+
+= Empty after deleting everything
+touchn autogen- 700 500
+lscount . 500
+rmcount . 500
+lscount . 0
