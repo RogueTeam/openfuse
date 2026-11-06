@@ -1,5 +1,7 @@
 # openfuse
 
+[Documentation](https://pkg.go.dev/github.com/RogueTeam/openfuse)
+
 > IMPORTANT: AI USAGE IS NOT ALLOWED IN THIS PROJECT
 
 A pure Go, BSD Licensed, handcrafted fuse library so you can bring your FUSE ideas to the best operating system in the entire world.
