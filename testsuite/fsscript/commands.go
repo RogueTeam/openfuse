@@ -517,6 +517,22 @@ func (c *Close) Run(ctx *CommandContext, base string) (err error) {
 	return fmt.Errorf("name is not in use: %s", c.Name)
 }
 
+type Fsync struct {
+	Line int
+	Name string
+}
+
+func (f *Fsync) GetName() (name string) { return "fsync" }
+func (f *Fsync) GetLine() (line int)    { return f.Line }
+func (f *Fsync) Run(ctx *CommandContext, base string) (err error) {
+	if handle, found := ctx.Handles[f.Name]; found {
+		return handle.Sync()
+
+	}
+
+	return fmt.Errorf("name is not in use: %s", f.Name)
+}
+
 type ReadAll struct {
 	Line     int
 	Name     string
@@ -560,6 +576,23 @@ func (w *WriteAll) Run(ctx *CommandContext, base string) (err error) {
 		return nil
 	}
 	return fmt.Errorf("name is not in use: %s", w.Name)
+}
+
+type Seek struct {
+	Line   int
+	Name   string
+	Offset int64
+	Whence int
+}
+
+func (s *Seek) GetName() (name string) { return "seek" }
+func (s *Seek) GetLine() (line int)    { return s.Line }
+func (s *Seek) Run(ctx *CommandContext, base string) (err error) {
+	if handle, found := ctx.Handles[s.Name]; found {
+		_, err = handle.Seek(s.Offset, s.Whence)
+		return err
+	}
+	return fmt.Errorf("name is not in use: %s", s.Name)
 }
 
 func NewCommand(line int, command string, args []string) (cmd Command, err error) {
@@ -916,6 +949,17 @@ func NewCommand(line int, command string, args []string) (cmd Command, err error
 			Line: line,
 			Name: name,
 		}, nil
+	case "fsync":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("expecting: fsync HANDLE_NAME")
+		}
+
+		name := args[0]
+
+		return &Fsync{
+			Line: line,
+			Name: name,
+		}, nil
 	case "readall":
 		if len(args) < 2 {
 			return nil, fmt.Errorf("expecting: readall HANDLE_NAME CONTENTS")
@@ -947,6 +991,31 @@ func NewCommand(line int, command string, args []string) (cmd Command, err error
 			Line:     line,
 			Name:     name,
 			Contents: contents,
+		}, nil
+	case "seek":
+		if len(args) != 3 {
+			return nil, fmt.Errorf("expecting: seek HANDLE_NAME OFFSET WHENCE")
+		}
+
+		name := args[0]
+		rawOffset := args[1]
+		rawWhence := args[2]
+
+		offset, err := strconv.ParseInt(rawOffset, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse offset: %w", err)
+		}
+
+		whence, err := strconv.Atoi(rawWhence)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse whence: %w", err)
+		}
+
+		return &Seek{
+			Line:   line,
+			Name:   name,
+			Offset: offset,
+			Whence: whence,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown command: %s", command)
